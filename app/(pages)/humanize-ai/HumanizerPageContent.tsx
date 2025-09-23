@@ -35,7 +35,7 @@ export default function HumanizerPageContent() {
     if (isLoaded && !isSignedIn) router.push("/auth/sign-in");
   }, [isLoaded, isSignedIn, router]);
 
-  // Fetch history
+  // Fetch user history
   const fetchHistory = async () => {
     if (!user) return;
     setHistoryLoading(true);
@@ -44,13 +44,15 @@ export default function HumanizerPageContent() {
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
-
     if (!error && data) setHistory(data as HistoryItem[]);
+    else if (error) console.error("Supabase fetch history error:", error);
     setHistoryLoading(false);
   };
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) fetchHistory();
+    if (isLoaded && isSignedIn) {
+      fetchHistory();
+    }
   }, [isLoaded, isSignedIn]);
 
   // Select history item
@@ -67,24 +69,27 @@ export default function HumanizerPageContent() {
     setSelectedHistoryId(null);
   };
 
-  // Humanize text and save history
+  // Humanize text via API
   const handleHumanize = async () => {
     if (!inputText) return;
+
     setLoading(true);
     try {
-      // Call your API to humanize text
       const res = await fetch("/api/humanize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: inputText }),
       });
+
+      if (!res.ok) throw new Error(`AI API error: ${res.statusText}`);
+
       const data = await res.json();
       const humanizedText = data.humanized || "";
       setOutputText(humanizedText);
 
-      // Save to Supabase
       if (isSignedIn && user && humanizedText) {
-        const { data: newHistory, error } = await supabase
+        // Insert history
+        const { data: newHistory, error: historyError } = await supabase
           .from("humanize_history")
           .insert({
             user_id: user.id,
@@ -92,10 +97,8 @@ export default function HumanizerPageContent() {
             output_text: humanizedText,
           })
           .select();
-
-        if (error) console.error("Supabase insert error:", error);
+        if (historyError) console.error("Supabase insert error:", historyError);
         else if (newHistory?.length) {
-          // Update selected history & refresh history list
           setSelectedHistoryId(newHistory[0].id);
           fetchHistory();
         }
@@ -129,17 +132,15 @@ export default function HumanizerPageContent() {
       <div className="flex-1 max-w-7xl mx-auto py-12 space-y-10 px-6">
         {/* Header */}
         <section className="flex flex-col items-center gap-2 text-center">
-          <Badge className="mb-4">AI Humanizer</Badge>
+          <Badge className="mb-2">AI Humanizer</Badge>
           <TypographyH1>Humanize Your AI Text</TypographyH1>
-          <TypographyP>
-            Paste your text below and transform it into natural content.
-          </TypographyP>
+          <TypographyP>Paste your text below and transform it into natural content.</TypographyP>
         </section>
 
         {/* Input / Output */}
         <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
           {/* Input */}
-          <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px] ">
+          <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
             <h3 className="font-semibold mb-2">Input</h3>
             <textarea
               value={inputText}
@@ -147,9 +148,6 @@ export default function HumanizerPageContent() {
               placeholder="Paste your AI text here..."
               className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
             />
-            <span className="text-xs mt-2 text-muted-foreground">
-              {inputText.split(" ").filter(Boolean).length}/500 words
-            </span>
           </div>
 
           {/* Output */}
@@ -180,11 +178,7 @@ export default function HumanizerPageContent() {
                 <Trash2 className="h-4 w-4 mr-1" /> Clear
               </Button>
               {outputText && (
-                <Button
-                  variant="outline"
-                  onClick={handleHumanize}
-                  disabled={loading}
-                >
+                <Button variant="outline" onClick={handleHumanize} disabled={loading}>
                   <Repeat className="h-4 w-4 mr-1" /> Regenerate
                 </Button>
               )}
