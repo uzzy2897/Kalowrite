@@ -1,16 +1,17 @@
-import { verifyWebhook } from "@clerk/nextjs/webhooks";
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 
 export async function POST(req: NextRequest) {
   try {
-    const evt = await verifyWebhook(req);
-
-    // Clerk's types aren't up-to-date yet for billing events
-    const { type, data } = evt as { type: string; data: any };
+    // -------------------------
+    // TEMP: Skip signature verification for testing
+    // -------------------------
+    const evt = await req.json(); // just parse the body
+    const { type, data } = evt;
     const attrs = data?.attributes;
 
-    console.log("📩 Clerk Billing Webhook:", type, attrs);
+    console.log("📩 Received webhook event:", type);
+    console.log("📦 Payload:", JSON.stringify(data, null, 2));
 
     switch (type) {
       // -------------------------
@@ -142,12 +143,12 @@ export async function POST(req: NextRequest) {
       }
 
       default:
-        console.log("ℹ️ Ignored event:", type);
+        console.log("ℹ️ Ignored event type:", type);
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("❌ Clerk webhook error:", err);
-    return NextResponse.json({ error: "Invalid webhook" }, { status: 400 });
+    console.error("❌ Webhook error:", err);
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 400 });
   }
 }
