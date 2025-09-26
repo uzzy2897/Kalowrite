@@ -52,14 +52,12 @@ export default function RootLayout({
     <ClerkProvider 
     appearance={{
       baseTheme: dark,
-      elements: {
-        footer: { display: "none" }, // Hides the footer branding
-      
-      },
+     
     }}
 >
+  
       <html lang="en" className="dark" suppressHydrationWarning>
-        <body className={`${dmSans.variable} bg-neutral-950  antialiased`}>
+        <body className={`${dmSans.variable} bg-stone-950  antialiased`}>
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"
