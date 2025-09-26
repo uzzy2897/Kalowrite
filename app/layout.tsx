@@ -49,7 +49,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider appearance={{ baseTheme: dark }}>
+    <ClerkProvider 
+    appearance={{
+      baseTheme: dark,
+      elements: {
+        footer: { display: "none" }, // Hides the footer branding
+      
+      },
+    }}
+>
       <html lang="en" className="dark" suppressHydrationWarning>
         <body className={`${dmSans.variable} bg-neutral-950  antialiased`}>
           <ThemeProvider
