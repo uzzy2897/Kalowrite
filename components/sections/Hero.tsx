@@ -88,18 +88,40 @@ const Hero = () => {
             <SignedIn>
               <button
                 onClick={handleHumanize}
-                className="bg-emerald-500 text-sm font-semibold rounded-md hover:bg-emerald-700 px-4 py-2"
+                className="bg-emerald-500 text-sm font-semibold hover:scale-105 transition ease rounded-md hover:bg-emerald-700 px-4 py-2"
               >
                 Start Humanizing
               </button>
             </SignedIn>
-
-            {/* Signed-out users */}
             <SignedOut>
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-col items-center gap-2 ">
                 <SignInButton mode="modal">
                   <button
-                    className="bg-emerald-500 text-sm font-semibold rounded-md hover:bg-emerald-700 px-4 py-2"
+                    className="bg-emerald-500 text-sm font-semibold hover:scale-105 transition ease rounded-md hover:bg-emerald-700 px-4 py-2"
+                    onClick={() =>
+                      sessionStorage.setItem(
+                        "afterSignInRedirect",
+                        "/humanize-ai"
+                      )
+                    }
+                  >
+                    Humanize
+                  </button>
+                </SignInButton>
+                
+              </div>
+            </SignedOut>
+
+          
+          </div>
+          
+        </div>
+          {/* Signed-out users */}
+          <SignedOut>
+              <div className="flex flex-col items-center gap-2 mt-6">
+                <SignInButton mode="modal">
+                  <button
+                    className="bg-emerald-500 text-sm font-semibold hover:scale-105 transition ease rounded-md hover:bg-emerald-700 px-4 py-2"
                     onClick={() =>
                       sessionStorage.setItem(
                         "afterSignInRedirect",
@@ -115,8 +137,6 @@ const Hero = () => {
                 </span>
               </div>
             </SignedOut>
-          </div>
-        </div>
       </div>
     </section>
   );

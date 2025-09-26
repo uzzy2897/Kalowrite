@@ -12,7 +12,7 @@ export default function Footer() {
   }
 
   return (
-    <footer className="w-full border-t max-w-7xl mx-auto mt-24">
+    <footer className="w-full border-t px-4 lg:px-16 mt-24">
       {/* Footer main section */}
       <div className="container mx-auto py-8 max-w-7xl grid gap-6 md:grid-cols-3 text-sm text-muted-foreground">
         <div className="border-r pr-4">

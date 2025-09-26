@@ -9,6 +9,7 @@ import { Loader2, ClipboardCopy, Trash2, Repeat } from "lucide-react";
 import { TypographyH1, TypographyP } from "@/components/Typography";
 import Sidebar from "./Sidebar";
 import { supabase } from "@/lib/supabaseClient";
+import Link from "next/link";
 
 type HistoryItem = {
   id: string;
@@ -121,24 +122,40 @@ export default function HumanizerPageContent() {
 
   return (
     <main className="flex relative min-h-screen">
-      {/* Sidebar */}
+      <div className="flex flex-col"> 
       <Sidebar
         onSelectHistory={handleSelectHistory}
         clearSession={handleClearSession}
         selectedHistoryId={selectedHistoryId}
       />
 
+      </div>
+      {/* Sidebar */}
+      
+
       {/* Main Workspace */}
-      <div className="flex-1 max-w-7xl mx-auto py-12 space-y-10 px-6">
-        {/* Header */}
-        <section className="flex flex-col items-center gap-2 text-center">
+      <div className="flex-1   ">
+      <header className="p-4 h-16 border-b">
+        <Link href={"/"}>
+          <img
+            className="h-6"
+            src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
+            alt="Kalowrite Logo"
+          />
+        </Link>
+          
+   
+
+        </header>
+       
+        <div className=" max-w-7xl space-y-10 py-12 px-8 mx-auto">
+        <section className="flex-1  flex-col  items-center gap-2 text-center">
           <Badge className="mb-2">AI Humanizer</Badge>
           <TypographyH1>Humanize Your AI Text</TypographyH1>
           <TypographyP>Paste your text below and transform it into natural content.</TypographyP>
         </section>
-
-        {/* Input / Output */}
-        <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
+          {/* Input / Output */}
+          <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
           {/* Input */}
           <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
             <h3 className="font-semibold mb-2">Input</h3>
@@ -185,6 +202,12 @@ export default function HumanizerPageContent() {
             </div>
           </div>
         </section>
+
+        </div>
+        {/* Header */}
+     
+
+      
 
         {/* Floating Humanize Button */}
         <section className="flex justify-center">

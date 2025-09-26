@@ -14,7 +14,7 @@ interface SubscriptionWebhookEvent {
 
 export async function POST(req: Request) {
   try {
-    const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SIGNING_SECRET
+    const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
     if (!WEBHOOK_SECRET) throw new Error('Missing CLERK_WEBHOOK_SIGNING_SECRET')
 
     const headerPayload = await headers()
