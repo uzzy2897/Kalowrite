@@ -16,6 +16,7 @@ type HistoryItem = {
   input_text: string;
   output_text: string;
   created_at: string;
+  words_used?: number;
 };
 
 export default function HumanizerPageContent() {
@@ -31,12 +32,40 @@ export default function HumanizerPageContent() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // Balance state
+  const [balance, setBalance] = useState<number | null>(null);
+  const [plan, setPlan] = useState<string | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+
   // Redirect if not signed in
   useEffect(() => {
     if (isLoaded && !isSignedIn) router.push("/auth/sign-in");
   }, [isLoaded, isSignedIn, router]);
 
-  // Fetch user history
+  // Fetch balance
+  const fetchBalance = async () => {
+    if (!user) return;
+    setBalanceLoading(true);
+    const { data, error } = await supabase
+      .from("user_balances")
+      .select("balance, plan")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error("❌ Supabase fetch balance error:", error);
+    } else if (data) {
+      setBalance(data.balance);
+      setPlan(data.plan);
+    } else {
+      console.log("ℹ️ No balance found, setting default 0");
+      setBalance(0);
+      setPlan(null);
+    }
+    setBalanceLoading(false);
+  };
+
+  // Fetch history
   const fetchHistory = async () => {
     if (!user) return;
     setHistoryLoading(true);
@@ -46,17 +75,18 @@ export default function HumanizerPageContent() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
     if (!error && data) setHistory(data as HistoryItem[]);
-    else if (error) console.error("Supabase fetch history error:", error);
+    else if (error) console.error("❌ Supabase fetch history error:", error);
     setHistoryLoading(false);
   };
 
   useEffect(() => {
     if (isLoaded && isSignedIn) {
+      fetchBalance();
       fetchHistory();
     }
   }, [isLoaded, isSignedIn]);
 
-  // Select history item
+  // Select history
   const handleSelectHistory = (item: HistoryItem) => {
     setInputText(item.input_text);
     setOutputText(item.output_text);
@@ -70,9 +100,14 @@ export default function HumanizerPageContent() {
     setSelectedHistoryId(null);
   };
 
-  // Humanize text via API
+  // Humanize text
   const handleHumanize = async () => {
     if (!inputText) return;
+
+    if (balance !== null && balance <= 0) {
+      setOutputText("⚠️ You’ve reached your word limit. Please upgrade your plan.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -89,6 +124,8 @@ export default function HumanizerPageContent() {
       setOutputText(humanizedText);
 
       if (isSignedIn && user && humanizedText) {
+        const wordCount = inputText.split(/\s+/).length;
+
         // Insert history
         const { data: newHistory, error: historyError } = await supabase
           .from("humanize_history")
@@ -96,12 +133,29 @@ export default function HumanizerPageContent() {
             user_id: user.id,
             input_text: inputText,
             output_text: humanizedText,
+            words_used: wordCount,
           })
           .select();
-        if (historyError) console.error("Supabase insert error:", historyError);
+
+        if (historyError) console.error("❌ Supabase insert error:", historyError);
         else if (newHistory?.length) {
           setSelectedHistoryId(newHistory[0].id);
           fetchHistory();
+        }
+
+        // Deduct balance
+        if (balance !== null) {
+          const newBalance = Math.max(balance - wordCount, 0);
+          setBalance(newBalance);
+
+          const { error: balanceError } = await supabase
+            .from("user_balances")
+            .update({ balance: newBalance, updated_at: new Date().toISOString() })
+            .eq("user_id", user.id);
+
+          if (balanceError) {
+            console.error("❌ Supabase balance update error:", balanceError);
+          }
         }
       }
     } catch (err) {
@@ -122,100 +176,131 @@ export default function HumanizerPageContent() {
 
   return (
     <main className="flex relative min-h-screen">
-      <div className="flex flex-col"> 
-      <Sidebar
-        onSelectHistory={handleSelectHistory}
-        clearSession={handleClearSession}
-        selectedHistoryId={selectedHistoryId}
-      />
-
+      <div className="flex flex-col">
+        <Sidebar
+          onSelectHistory={handleSelectHistory}
+          clearSession={handleClearSession}
+          selectedHistoryId={selectedHistoryId}
+        />
       </div>
-      {/* Sidebar */}
-      
 
-      {/* Main Workspace */}
-      <div className="flex-1   ">
-      <header className="p-4 h-16 border-b">
-        <Link href={"/"}>
-          <img
-            className="h-6"
-            src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
-            alt="Kalowrite Logo"
-          />
-        </Link>
-          
-   
+      <div className="flex-1">
+      <header className="p-4 h-16 border-b flex justify-between items-center">
+  <Link href={"/"}>
+    <img
+      className="h-6"
+      src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
+      alt="Kalowrite Logo"
+    />
+  </Link>
 
-        </header>
-       
-        <div className=" max-w-7xl space-y-10 py-12 px-8 mx-auto">
-        <section className="flex-1  flex-col  items-center gap-2 text-center">
-          <Badge className="mb-2">AI Humanizer</Badge>
-          <TypographyH1>Humanize Your AI Text</TypographyH1>
-          <TypographyP>Paste your text below and transform it into natural content.</TypographyP>
-        </section>
-          {/* Input / Output */}
-          <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
-          {/* Input */}
-          <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
-            <h3 className="font-semibold mb-2">Input</h3>
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Paste your AI text here..."
-              className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
-            />
-          </div>
-
-          {/* Output */}
-          <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
-            <h3 className="font-semibold mb-2">Output</h3>
-            <div className="flex-grow text-sm overflow-auto whitespace-pre-line bg-muted/30 rounded-md p-3">
-              {loading ? (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="animate-spin h-4 w-4" /> Processing...
-                </div>
-              ) : (
-                outputText || "Your humanized text will appear here."
-              )}
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="secondary"
-                disabled={!outputText}
-                onClick={() => navigator.clipboard.writeText(outputText)}
-              >
-                <ClipboardCopy className="h-4 w-4 mr-1" /> Copy
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={!inputText && !outputText}
-                onClick={handleClearSession}
-              >
-                <Trash2 className="h-4 w-4 mr-1" /> Clear
-              </Button>
-              {outputText && (
-                <Button variant="outline" onClick={handleHumanize} disabled={loading}>
-                  <Repeat className="h-4 w-4 mr-1" /> Regenerate
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
-
+  {balanceLoading ? (
+    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+  ) : (
+    balance !== null && (
+      <div className="flex flex-col items-end space-y-1 w-48">
+        {/* Text info */}
+        <div className="text-sm text-muted-foreground">
+          {plan ? `${plan.toUpperCase()}: ` : ""}{balance} words left
         </div>
-        {/* Header */}
-     
 
-      
+        {/* Progress bar */}
+        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full bg-emerald-500 transition-all duration-300"
+            style={{
+              width: `${
+                plan === "free_user"
+                  ? (balance / 100) * 100
+                  : plan === "basic-plan"
+                  ? (balance / 500) * 100
+                  : plan === "pro-plan"
+                  ? (balance / 1500) * 100
+                  : plan === "ultra-plan"
+                  ? (balance / 3000) * 100
+                  : 0
+              }%`,
+            }}
+          />
+        </div>
+      </div>
+    )
+  )}
+</header>
 
-        {/* Floating Humanize Button */}
+
+        <div className="max-w-7xl space-y-10 py-12 px-8 mx-auto">
+          <section className="flex-1 flex-col items-center gap-2 text-center">
+            <Badge className="mb-2">AI Humanizer</Badge>
+            <TypographyH1>Humanize Your AI Text</TypographyH1>
+            <TypographyP>
+              Paste your text below and transform it into natural content.
+            </TypographyP>
+          </section>
+
+          <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
+            {/* Input */}
+            <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
+              <h3 className="font-semibold mb-2">Input</h3>
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Paste your AI text here..."
+                className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
+              />
+            </div>
+
+            {/* Output */}
+            <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
+              <h3 className="font-semibold mb-2">Output</h3>
+              <div className="flex-grow text-sm overflow-auto whitespace-pre-line bg-muted/30 rounded-md p-3">
+                {loading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="animate-spin h-4 w-4" /> Processing...
+                  </div>
+                ) : (
+                  outputText || "Your humanized text will appear here."
+                )}
+              </div>
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant="secondary"
+                  disabled={!outputText}
+                  onClick={() => navigator.clipboard.writeText(outputText)}
+                >
+                  <ClipboardCopy className="h-4 w-4 mr-1" /> Copy
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={!inputText && !outputText}
+                  onClick={handleClearSession}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" /> Clear
+                </Button>
+                {outputText && balance !== null && balance > 0 && (
+                  <Button variant="outline" onClick={handleHumanize} disabled={loading}>
+                    <Repeat className="h-4 w-4 mr-1" /> Regenerate
+                  </Button>
+                )}
+              </div>
+              {balance !== null && balance <= 0 && (
+                <div className="text-red-500 text-xs mt-2">
+                  ⚠️ You’ve used up your balance.{" "}
+                  <Link href="/pricing" className="underline">
+                    Upgrade your plan
+                  </Link>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
         <section className="flex justify-center">
           <Button
             size="lg"
             className="lg:static fixed bottom-6 w-64 lg:w-fit text-white left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-full px-6 py-3 flex items-center justify-center"
             onClick={handleHumanize}
-            disabled={!inputText || loading}
+            disabled={!inputText || loading || (balance !== null && balance <= 0)}
           >
             {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
             {loading ? "Humanizing..." : "Humanize"}
