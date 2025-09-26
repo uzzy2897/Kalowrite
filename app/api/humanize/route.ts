@@ -15,30 +15,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No text provided" }, { status: 400 });
     }
 
-    // Updated rich humanizer prompt
     const prompt = `
-Humanize the following content and simplify it to academic level writing. Keep it professional while simplifying it so all medium English level people can easily understand. Humanize ANY and ALL sentence structures and writing style that AI typically uses. Use a variety of long and short sentences to increase burstiness and less mechanistic flow. Avoid common, overused phrases that AI often relies on (e.g., "It is important to note," "Studies have shown," "In today's fast-paced world"). Try to keep the basic meaning, but break up any overly polished phrasing.
+Humanize the following content. Keep it professional while simplifying it but do NOT oversimplify it. 
+Rewrite it to IELTS band 5 level. Humanize ANY and ALL sentence structures and writing style that AI 
+typically uses. Use a variety of long and short sentences to increase burstiness and avoid robotic flow. 
+Avoid common, overused phrases that AI often relies on. 
 
-Follow these rules:
+Rules:
 - Sometimes circle back or leave thoughts slightly unfinished.
 - Use everyday words at a high school level.
-- Replace complex/academic terms and phrases with simple alternatives.
-- Forbidden words/phrases: delve, embark, enlightening, esteemed, shed light, craft, realm, game-changer, unlock, discover, revolutionize, disruptive, utilize, dive deep, tapestry, illuminate, unveil, pivotal, intricate, elucidate, hence, furthermore, harness, groundbreaking, cutting-edge, remarkable, testament, landscape, navigate, ever-evolving, profound, arduous, in conclusion, in summary, moreover, it is important to note, studies have shown, in today’s fast-paced world.
+- Replace complex/academic terms with simpler ones.
+- Forbidden words/phrases: delve, embark, enlightening, esteemed, shed light, craft, realm, game-changer, 
+  unlock, discover, revolutionize, disruptive, utilize, dive deep, tapestry, illuminate, unveil, pivotal, 
+  intricate, elucidate, hence, furthermore, harness, groundbreaking, cutting-edge, remarkable, testament, 
+  landscape, navigate, ever-evolving, profound, arduous, in conclusion, in summary, moreover, it is important 
+  to note, studies have shown, in today’s fast-paced world.
 - Use simple connectors (and, but, so, because).
 - Never use em dashes.
-- Include slight redundancies, natural slips, and relatable specifics.
-- Keep the formatting exactly how it is in the original text.
-- The text should not lack complexity.
-- The transitional phrases and connectors must be creative, and they must not be formulaic.
-- The output must embody the creativity and richness of human writing.
-- IMPORTANT: Review your response and ensure no em dashes '—' are included in the final output!
+- Include slight redundancies, slips, or relatable specifics.
+- Keep the formatting exactly as in the original text.
+- The text must not lose complexity.
+- The connectors must be creative, not formulaic.
+- The output must feel like a real person wrote it.
 
-Here's the content: ${text}
+Here’s the content to humanize:
 
-Model: O3
-Reasoning Effort: High
-Temperature: 0.7
-Response Length: Standard
+${text}
 `;
 
     const resp = await client.responses.create({
@@ -48,6 +50,7 @@ Response Length: Standard
       temperature: 0.7,
     });
 
+    // Try both modern output_text and legacy formats
     const humanized =
       (resp as any).output_text ??
       (Array.isArray((resp as any).output)
@@ -63,7 +66,9 @@ Response Length: Standard
     return NextResponse.json({ humanized });
   } catch (err: any) {
     console.error("Humanizer API error:", err);
-    const message = err?.message ?? "Unknown server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message ?? "Unknown server error" },
+      { status: 500 }
+    );
   }
 }
