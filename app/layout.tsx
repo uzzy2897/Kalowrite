@@ -52,8 +52,13 @@ export default function RootLayout({
     <ClerkProvider 
     appearance={{
       baseTheme: dark,
+      elements: {
+        footer: "hidden", // ✅ this removes "Secured by Clerk"
+      },
+     
      
     }}
+    
 >
   
       <html lang="en" className="dark" suppressHydrationWarning>
