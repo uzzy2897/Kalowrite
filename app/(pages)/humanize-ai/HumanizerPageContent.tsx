@@ -175,7 +175,7 @@ export default function HumanizerPageContent() {
   }
 
   return (
-    <main className="flex relative min-h-screen">
+    <main className="flex relative min-h-screen mb-24">
       <div className="flex flex-col">
         <Sidebar
           onSelectHistory={handleSelectHistory}
@@ -194,43 +194,47 @@ export default function HumanizerPageContent() {
     />
   </Link>
 
-  {balanceLoading ? (
-    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-  ) : (
-    balance !== null && (
-      <div className="flex flex-col items-end space-y-1 w-48">
-        {/* Text info */}
-        <div className="text-sm text-muted-foreground">
-          {plan ? `${plan.toUpperCase()}: ` : ""}{balance} words left
-        </div>
-
-        {/* Progress bar */}
-        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full bg-emerald-500 transition-all duration-300"
-            style={{
-              width: `${
-                plan === "free_user"
-                  ? (balance / 100) * 100
-                  : plan === "basic-plan"
-                  ? (balance / 500) * 100
-                  : plan === "pro-plan"
-                  ? (balance / 1500) * 100
-                  : plan === "ultra-plan"
-                  ? (balance / 3000) * 100
-                  : 0
-              }%`,
-            }}
-          />
-        </div>
-      </div>
-    )
-  )}
 </header>
 
 
         <div className="max-w-7xl space-y-10 py-12 px-8 mx-auto">
+       
           <section className="flex-1 flex-col items-center gap-2 text-center">
+          <div className="w-full mb-4">
+
+{balanceLoading ? (
+  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+) : (
+  balance !== null && (
+    <div className="flex flex-col items-center w-full space-y-1 lg:w-full">
+      {/* Text info */}
+      <div className="text-sm text-muted-foreground">
+        {plan ? `${plan.toUpperCase()}: ` : ""}{balance} words left
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-2 bg-muted rounded-full w-64 overflow-hidden">
+        <div
+          className="h-full bg-emerald-500 transition-all duration-300"
+          style={{
+            width: `${
+              plan === "free_user"
+                ? (balance / 100) * 100
+                : plan === "basic-plan"
+                ? (balance / 500) * 100
+                : plan === "pro-plan"
+                ? (balance / 1500) * 100
+                : plan === "ultra-plan"
+                ? (balance / 3000) * 100
+                : 0
+            }%`,
+          }}
+        />
+      </div>
+    </div>
+  )
+)}
+        </div>
             <Badge className="mb-2">AI Humanizer</Badge>
             <TypographyH1>Humanize Your AI Text</TypographyH1>
             <TypographyP>
@@ -298,7 +302,7 @@ export default function HumanizerPageContent() {
         <section className="flex justify-center">
           <Button
             size="lg"
-            className="lg:static fixed bottom-6 w-64 lg:w-fit text-white left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-full px-6 py-3 flex items-center justify-center"
+            className="lg:static fixed bottom-16 w-64 lg:w-fit text-white left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-full px-6 py-3 flex items-center justify-center"
             onClick={handleHumanize}
             disabled={!inputText || loading || (balance !== null && balance <= 0)}
           >
