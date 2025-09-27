@@ -59,7 +59,7 @@ export default function FAQ() {
             >
               <button
                 onClick={() => toggleItem(index)}
-                className="flex justify-between items-center w-full px-4 py-4 text-left text-sm font-semibold lg:text-xl"
+                className="flex justify-between items-center w-full px-4 py-4 bg-accent/50 text-left text-xs font-semibold lg:text-xl"
               >
                 {item.question}
                 <div className="p-2 border rounded-full bg-white">

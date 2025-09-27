@@ -74,7 +74,7 @@ export default function Navbar() {
           <SignedIn>
             <Link
               href={"/humanize-ai"}
-              className="border bg-accent px-4 py-2 text-sm font-semibold rounded-full"
+              className="border bg-accent px-4 py-2 text-sm **:text-center flex justify-center font-semibold rounded-full"
             >
               ✨ Start Humanizing
             </Link>
@@ -140,14 +140,14 @@ export default function Navbar() {
             <div className="flex gap-2 w-full">
             <Link
               href={"/humanize-ai"}
-              className="border bg-accent px-4 py-2 w-full text-sm font-semibold rounded-full"
+              className="border bg-accent px-4 py-3  w-full text-xs text-center font-semibold rounded-full"
               onClick={() => setIsOpen(false)}
             >
               ✨ Start Humanizing
             </Link>
             <Link
               href={"/pricing"}
-              className="px-4 py-2 border text-sm w-full font-semibold bg-emerald-500 rounded-full"
+              className="px-4 py-3 border text-xs text-center  w-full font-semibold bg-emerald-500 rounded-full"
               onClick={() => setIsOpen(false)}
             >
               Upgrade plan
