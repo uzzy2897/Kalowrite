@@ -10,7 +10,7 @@ export default function Page() {
      appearance={{
       elements:{
         formButtonPrimary:'#2CB175',
-        footer: "hidden", // 🚀 removes the "Secured by Clerk"
+
        
       },
       baseTheme: dark,

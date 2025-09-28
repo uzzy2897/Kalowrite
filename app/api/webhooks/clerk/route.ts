@@ -121,7 +121,21 @@ export async function POST(req: Request) {
           ultra: 3000,
         };
 
-        const balance = PLAN_BALANCES[slug] ?? 0;
+        let balance = PLAN_BALANCES[slug] ?? 0;
+
+        // --- Check for free trial abuse ---
+        if (slug === "free_user") {
+          const { data: existingUser } = await supabaseAdmin
+            .from("user_balances")
+            .select("free_trial_used, balance")
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          if (existingUser?.free_trial_used) {
+            console.log("⚠️ Trial already used, forcing balance = 0");
+            balance = 0;
+          }
+        }
 
         const { error: balanceError } = await supabaseAdmin
           .from("user_balances")
@@ -131,6 +145,7 @@ export async function POST(req: Request) {
               balance,
               plan: slug,
               updated_at: new Date().toISOString(),
+              free_trial_used: slug === "free_user" ? true : undefined,
             },
             { onConflict: "user_id" }
           );
