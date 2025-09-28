@@ -43,11 +43,14 @@ export async function POST(req: Request) {
     const sub = evt.data;
     console.log("📦 Subscription payload:", JSON.stringify(sub, null, 2));
 
-    // --- 2. Get user_id directly from payer
+    // --- 2. Get user_id and email ---
     const userId = sub?.payer?.user_id ?? null;
-    if (!userId) {
-      console.error("⚠️ No user_id found in subscription payload");
-      return NextResponse.json({ error: "User ID not found" }, { status: 400 });
+    const email =
+      sub?.payer?.email_addresses?.[0]?.email_address ?? null;
+
+    if (!userId || !email) {
+      console.error("⚠️ Missing user_id or email in subscription payload");
+      return NextResponse.json({ error: "User data missing" }, { status: 400 });
     }
 
     // --- 3. Upsert subscription
@@ -123,31 +126,33 @@ export async function POST(req: Request) {
 
         let balance = PLAN_BALANCES[slug] ?? 0;
 
-        // --- Check for free trial abuse ---
+        // --- Check for free trial abuse using email ---
         if (slug === "free_user") {
           const { data: existingUser } = await supabaseAdmin
             .from("user_balances")
-            .select("free_trial_used, balance")
-            .eq("user_id", userId)
+            .select("free_trial_used")
+            .eq("email", email)
             .maybeSingle();
 
           if (existingUser?.free_trial_used) {
-            console.log("⚠️ Trial already used, forcing balance = 0");
+            console.log("⚠️ Trial already used for this email, forcing balance = 0");
             balance = 0;
           }
         }
 
+        // --- Upsert user balance anchored on email ---
         const { error: balanceError } = await supabaseAdmin
           .from("user_balances")
           .upsert(
             {
-              user_id: userId,
+              user_id: userId, // Clerk ID (changes if account deleted)
+              email,           // ✅ stable identifier
               balance,
               plan: slug,
               updated_at: new Date().toISOString(),
               free_trial_used: slug === "free_user" ? true : undefined,
             },
-            { onConflict: "user_id" }
+            { onConflict: "email" } // ✅ conflict check on email, not user_id
           );
 
         if (balanceError) {
@@ -158,7 +163,9 @@ export async function POST(req: Request) {
           );
         }
 
-        console.log(`✅ Balance set for ${userId}: ${balance} words (plan: ${slug})`);
+        console.log(
+          `✅ Balance set for ${email}: ${balance} words (plan: ${slug})`
+        );
       }
     }
 
