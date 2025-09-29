@@ -115,7 +115,7 @@ export async function POST(req: Request) {
 
         // match Clerk's actual slugs
         const PLAN_BALANCES: Record<string, number> = {
-          free_user: 100,
+          free_user: 500,
           basic: 500,
           pro: 1500,
           ultra: 3000,
