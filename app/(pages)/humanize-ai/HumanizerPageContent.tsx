@@ -11,70 +11,6 @@ import Sidebar from "./Sidebar";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 
-// 🆕 Upgrade Modal
-function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-xl shadow-lg w-96 space-y-4">
-        <h2 className="text-lg font-semibold">Upgrade Required</h2>
-        <p className="text-sm text-muted-foreground">
-          Word count exceeded your current plan. Please upgrade to process longer texts.
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Link href="/pricing">
-            <Button>Upgrade Plan</Button>
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 🆕 Top Up Modal
-function TopUpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [words, setWords] = useState(1000);
-
-  const price = (words / 1000) * 5; // e.g. $5 per 1000 words (adjust pricing model here)
-
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-xl shadow-lg w-[400px] space-y-4">
-        <h2 className="text-lg font-semibold">Top Up Credits</h2>
-        <p className="text-sm text-muted-foreground">
-          Buy extra words instantly. One-time purchase, not recurring.
-        </p>
-
-        {/* Slider */}
-        <input
-          type="range"
-          min={1000}
-          max={30000}
-          step={1000}
-          value={words}
-          onChange={(e) => setWords(Number(e.target.value))}
-          className="w-full"
-        />
-
-        <div className="flex justify-between text-sm">
-          <span>{words.toLocaleString()} words</span>
-          <span className="font-medium">${price.toFixed(2)}</span>
-        </div>
-
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          {/* 🔗 Replace with Stripe checkout or Supabase function */}
-          <Button className="bg-emerald-500 hover:bg-emerald-600 text-white">
-            Buy Now
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 type HistoryItem = {
   id: string;
   input_text: string;
@@ -101,15 +37,6 @@ export default function HumanizerPageContent() {
   const [plan, setPlan] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
-  // Word count + limits
-  const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
-  const maxWordsPerRequest = plan === "free_user" ? 500 : Infinity;
-  const exceededPlanLimit = wordCount > maxWordsPerRequest;
-
-  // Modals
-  const [showUpgrade, setShowUpgrade] = useState(false);
-  const [showTopUp, setShowTopUp] = useState(false);
-
   // Redirect if not signed in
   useEffect(() => {
     if (isLoaded && !isSignedIn) router.push("/auth/sign-in");
@@ -125,12 +52,15 @@ export default function HumanizerPageContent() {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!error && data) {
+    if (error) {
+      console.error("❌ Supabase fetch balance error:", error);
+    } else if (data) {
       setBalance(data.balance);
       setPlan(data.plan);
     } else {
+      console.log("ℹ️ No balance found, setting default 0");
       setBalance(0);
-      setPlan("free_user");
+      setPlan(null);
     }
     setBalanceLoading(false);
   };
@@ -139,12 +69,13 @@ export default function HumanizerPageContent() {
   const fetchHistory = async () => {
     if (!user) return;
     setHistoryLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("humanize_history")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
-    if (data) setHistory(data as HistoryItem[]);
+    if (!error && data) setHistory(data as HistoryItem[]);
+    else if (error) console.error("❌ Supabase fetch history error:", error);
     setHistoryLoading(false);
   };
 
@@ -154,6 +85,13 @@ export default function HumanizerPageContent() {
       fetchHistory();
     }
   }, [isLoaded, isSignedIn]);
+
+  // Select history
+  const handleSelectHistory = (item: HistoryItem) => {
+    setInputText(item.input_text);
+    setOutputText(item.output_text);
+    setSelectedHistoryId(item.id);
+  };
 
   // Clear session
   const handleClearSession = () => {
@@ -166,18 +104,8 @@ export default function HumanizerPageContent() {
   const handleHumanize = async () => {
     if (!inputText) return;
 
-    if (exceededPlanLimit) {
-      setShowUpgrade(true);
-      return;
-    }
-
     if (balance !== null && balance <= 0) {
-      // 🆕 Paid users get Top Up option
-      if (plan !== "free_user") {
-        setShowTopUp(true);
-      } else {
-        setOutputText("⚠️ You’ve reached your word limit. Please upgrade your plan.");
-      }
+      setOutputText("⚠️ You’ve reached your word limit. Please upgrade your plan.");
       return;
     }
 
@@ -190,25 +118,44 @@ export default function HumanizerPageContent() {
       });
 
       if (!res.ok) throw new Error(`AI API error: ${res.statusText}`);
+
       const data = await res.json();
       const humanizedText = data.humanized || "";
       setOutputText(humanizedText);
 
       if (isSignedIn && user && humanizedText) {
-        await supabase.from("humanize_history").insert({
-          user_id: user.id,
-          input_text: inputText,
-          output_text: humanizedText,
-          words_used: wordCount,
-        });
+        const wordCount = inputText.split(/\s+/).length;
 
+        // Insert history
+        const { data: newHistory, error: historyError } = await supabase
+          .from("humanize_history")
+          .insert({
+            user_id: user.id,
+            input_text: inputText,
+            output_text: humanizedText,
+            words_used: wordCount,
+          })
+          .select();
+
+        if (historyError) console.error("❌ Supabase insert error:", historyError);
+        else if (newHistory?.length) {
+          setSelectedHistoryId(newHistory[0].id);
+          fetchHistory();
+        }
+
+        // Deduct balance
         if (balance !== null) {
           const newBalance = Math.max(balance - wordCount, 0);
           setBalance(newBalance);
-          await supabase
+
+          const { error: balanceError } = await supabase
             .from("user_balances")
             .update({ balance: newBalance, updated_at: new Date().toISOString() })
             .eq("user_id", user.id);
+
+          if (balanceError) {
+            console.error("❌ Supabase balance update error:", balanceError);
+          }
         }
       }
     } catch (err) {
@@ -229,48 +176,85 @@ export default function HumanizerPageContent() {
 
   return (
     <main className="flex relative min-h-screen mb-24">
-      <Sidebar onSelectHistory={() => {}} clearSession={handleClearSession} selectedHistoryId={selectedHistoryId} />
+      <div className="flex flex-col">
+        <Sidebar
+          onSelectHistory={handleSelectHistory}
+          clearSession={handleClearSession}
+          selectedHistoryId={selectedHistoryId}
+        />
+      </div>
 
       <div className="flex-1">
-        <header className="p-4 h-16 border-b flex justify-between items-center">
-          <Link href={"/"}>
-            <img className="h-6" src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png" alt="Kalowrite Logo" />
-          </Link>
-          {/* Permanent Top Up in account (placeholder link) */}
-          <Link href="/account/billing">
-            <Button variant="outline" size="sm">Top up credits</Button>
-          </Link>
-        </header>
+      <header className="p-4 h-16 border-b flex justify-between items-center">
+  <Link href={"/"}>
+    <img
+      className="h-6"
+      src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
+      alt="Kalowrite Logo"
+    />
+  </Link>
+
+</header>
+
 
         <div className="max-w-7xl space-y-10 py-12 px-8 mx-auto">
+       
           <section className="flex-1 flex-col items-center gap-2 text-center">
-            {exceededPlanLimit && (
-              <div className="text-red-500 text-sm mb-2">
-                ⚠️ Word count exceeded. Please upgrade your plan to increase the limit.
-              </div>
-            )}
+          <div className="w-full mb-4">
+
+{balanceLoading ? (
+  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+) : (
+  balance !== null && (
+    <div className="flex flex-col items-center w-full space-y-1 lg:w-full">
+      {/* Text info */}
+      <div className="text-sm text-muted-foreground">
+        {plan ? `${plan.toUpperCase()}: ` : ""}{balance} words left
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-2 bg-muted rounded-full w-64 overflow-hidden">
+        <div
+          className="h-full bg-emerald-500 transition-all duration-300"
+          style={{
+            width: `${
+              plan === "free_user"
+                ? (balance / 100) * 100
+                : plan === "basic-plan"
+                ? (balance / 500) * 100
+                : plan === "pro-plan"
+                ? (balance / 1500) * 100
+                : plan === "ultra-plan"
+                ? (balance / 3000) * 100
+                : 0
+            }%`,
+          }}
+        />
+      </div>
+    </div>
+  )
+)}
+        </div>
             <Badge className="mb-2">AI Humanizer</Badge>
             <TypographyH1>Humanize Your AI Text</TypographyH1>
-            <TypographyP>Paste your text below and transform it into natural content.</TypographyP>
+            <TypographyP>
+              Paste your text below and transform it into natural content.
+            </TypographyP>
           </section>
 
-          {/* Input/Output */}
           <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
-            <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px] relative">
+            {/* Input */}
+            <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
               <h3 className="font-semibold mb-2">Input</h3>
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder="Paste your AI text here..."
-                className={`flex-grow resize-none outline-none text-sm leading-relaxed ${
-                  exceededPlanLimit ? "text-gray-400" : "text-black"
-                }`}
+                className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
               />
-              <div className="text-xs mt-2">
-                Words: {wordCount} / {maxWordsPerRequest === Infinity ? "∞" : maxWordsPerRequest}
-              </div>
             </div>
 
+            {/* Output */}
             <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
               <h3 className="font-semibold mb-2">Output</h3>
               <div className="flex-grow text-sm overflow-auto whitespace-pre-line bg-muted/30 rounded-md p-3">
@@ -282,27 +266,51 @@ export default function HumanizerPageContent() {
                   outputText || "Your humanized text will appear here."
                 )}
               </div>
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant="secondary"
+                  disabled={!outputText}
+                  onClick={() => navigator.clipboard.writeText(outputText)}
+                >
+                  <ClipboardCopy className="h-4 w-4 mr-1" /> Copy
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={!inputText && !outputText}
+                  onClick={handleClearSession}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" /> Clear
+                </Button>
+                {outputText && balance !== null && balance > 0 && (
+                  <Button variant="outline" onClick={handleHumanize} disabled={loading}>
+                    <Repeat className="h-4 w-4 mr-1" /> Regenerate
+                  </Button>
+                )}
+              </div>
+              {balance !== null && balance <= 0 && (
+                <div className="text-red-500 text-xs mt-2">
+                  ⚠️ You’ve used up your balance.{" "}
+                  <Link href="/pricing" className="underline">
+                    Upgrade your plan
+                  </Link>
+                </div>
+              )}
             </div>
           </section>
         </div>
 
-        {/* Humanize Button */}
         <section className="flex justify-center">
           <Button
             size="lg"
-            className="lg:static fixed bottom-16 w-64 lg:w-fit text-white left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-full"
+            className="lg:static fixed bottom-16 w-64 lg:w-fit text-white left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-full px-6 py-3 flex items-center justify-center"
             onClick={handleHumanize}
-            disabled={!inputText || loading}
+            disabled={!inputText || loading || (balance !== null && balance <= 0)}
           >
             {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
-            {exceededPlanLimit ? "Upgrade" : loading ? "Humanizing..." : "Humanize"}
+            {loading ? "Humanizing..." : "Humanize"}
           </Button>
         </section>
       </div>
-
-      {/* Modals */}
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
-      <TopUpModal open={showTopUp} onClose={() => setShowTopUp(false)} />
     </main>
   );
 }

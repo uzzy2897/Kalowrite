@@ -34,6 +34,7 @@ export async function POST(req: Request) {
 
   console.log("📩 Clerk event received:", evt.type);
 
+  // Only handle subscription lifecycle events
   if (
     evt.type === "subscription.created" ||
     evt.type === "subscription.updated" ||
@@ -42,15 +43,14 @@ export async function POST(req: Request) {
     const sub = evt.data;
     console.log("📦 Subscription payload:", JSON.stringify(sub, null, 2));
 
+    // --- 2. Get user_id directly from payer
     const userId = sub?.payer?.user_id ?? null;
-    const email = sub?.payer?.email_addresses?.[0]?.email_address ?? null;
-
-    if (!userId || !email) {
-      console.error("⚠️ Missing user_id or email in subscription payload");
-      return NextResponse.json({ error: "User data missing" }, { status: 400 });
+    if (!userId) {
+      console.error("⚠️ No user_id found in subscription payload");
+      return NextResponse.json({ error: "User ID not found" }, { status: 400 });
     }
 
-    // --- Save subscription info ---
+    // --- 3. Upsert subscription
     const subscriptionRecord = {
       id: sub.id,
       user_id: userId,
@@ -64,76 +64,105 @@ export async function POST(req: Request) {
         : new Date().toISOString(),
     };
 
-    await supabaseAdmin.from("subscriptions").upsert(subscriptionRecord, { onConflict: "id" });
+    const { error: subError } = await supabaseAdmin
+      .from("subscriptions")
+      .upsert(subscriptionRecord, { onConflict: "id" });
 
-    // --- Handle plan balance ---
+    if (subError) {
+      console.error("❌ Supabase subscription insert error:", subError);
+      return NextResponse.json({ error: "Database error" }, { status: 500 });
+    }
+
+    // --- 4. Upsert subscription items
     if (Array.isArray(sub.items)) {
-      const mainPlan = sub.items[0]?.plan;
-      if (mainPlan?.slug) {
-        const slug = mainPlan.slug.toLowerCase();
+      const itemRecords = sub.items.map((item: any) => {
+        const plan = item.plan ?? {};
+        return {
+          id: item.id,
+          subscription_id: sub.id,
+          plan_id: plan.id ?? null,
+          plan_name: plan.name ?? null,
+          plan_slug: plan.slug ?? null,
+          price: plan.amount ?? null,
+          currency: plan.currency ?? null,
+          interval: item.interval ?? plan.interval ?? null,
+          status: item.status,
+          period_start: item.period_start
+            ? new Date(item.period_start).toISOString()
+            : null,
+          period_end: item.period_end
+            ? new Date(item.period_end).toISOString()
+            : null,
+        };
+      });
 
+      const { error: itemsError } = await supabaseAdmin
+        .from("subscription_items")
+        .upsert(itemRecords, { onConflict: "id" });
+
+      if (itemsError) {
+        console.error("❌ Supabase subscription_items insert error:", itemsError);
+        return NextResponse.json({ error: "Database error" }, { status: 500 });
+      }
+
+      console.log("✅ Subscription items synced:", itemRecords);
+
+      // --- 5. Update user balance based on plan
+      const mainPlan = itemRecords[0];
+      if (mainPlan?.plan_slug) {
+        const slug = mainPlan.plan_slug.toLowerCase();
+        console.log("🔎 Normalized plan slug:", slug);
+
+        // match Clerk's actual slugs
         const PLAN_BALANCES: Record<string, number> = {
-          free_user: 500,
+          free_user: 100,
           basic: 500,
           pro: 1500,
           ultra: 3000,
         };
 
-        let baseBalance = PLAN_BALANCES[slug] ?? 0;
+        let balance = PLAN_BALANCES[slug] ?? 0;
 
         // --- Check for free trial abuse ---
         if (slug === "free_user") {
           const { data: existingUser } = await supabaseAdmin
             .from("user_balances")
             .select("free_trial_used, balance")
-            .eq("email", email)
+            .eq("user_id", userId)
             .maybeSingle();
 
           if (existingUser?.free_trial_used) {
-            console.log("⚠️ Trial already used, forcing baseBalance = 0");
-            baseBalance = 0;
+            console.log("⚠️ Trial already used, forcing balance = 0");
+            balance = 0;
           }
-
-          // Keep any remaining balance (e.g., top-ups), but don’t give free words again
-          const totalBalance = (existingUser?.balance ?? 0);
-          await supabaseAdmin.from("user_balances").upsert(
-            {
-              user_id: userId,
-              email,
-              plan: slug,
-              balance: totalBalance, // keep existing top-ups / previous words
-              updated_at: new Date().toISOString(),
-              free_trial_used: true,
-            },
-            { onConflict: "email" }
-          );
-        } else {
-          // For paid users: reset to base + keep any extra top-ups
-          const { data: existingUser } = await supabaseAdmin
-            .from("user_balances")
-            .select("balance")
-            .eq("email", email)
-            .maybeSingle();
-
-          const previousBalance = existingUser?.balance ?? 0;
-          const topups = Math.max(previousBalance - baseBalance, 0); // detect leftover top-ups
-          const newBalance = baseBalance + topups;
-
-          await supabaseAdmin.from("user_balances").upsert(
-            {
-              user_id: userId,
-              email,
-              plan: slug,
-              balance: newBalance,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "email" }
-          );
-
-          console.log(`✅ Balance reset: base=${baseBalance}, topups=${topups}, total=${newBalance}`);
         }
+
+        const { error: balanceError } = await supabaseAdmin
+          .from("user_balances")
+          .upsert(
+            {
+              user_id: userId,
+              balance,
+              plan: slug,
+              updated_at: new Date().toISOString(),
+              free_trial_used: slug === "free_user" ? true : undefined,
+            },
+            { onConflict: "user_id" }
+          );
+
+        if (balanceError) {
+          console.error("❌ Supabase user_balances insert error:", balanceError);
+          return NextResponse.json(
+            { error: "Balance DB error" },
+            { status: 500 }
+          );
+        }
+
+        console.log(`✅ Balance set for ${userId}: ${balance} words (plan: ${slug})`);
       }
     }
+
+    console.log("✅ Subscription synced:", subscriptionRecord);
   }
 
   return NextResponse.json({ ok: true });
