@@ -132,6 +132,12 @@ export default function HumanizerPageContent() {
       : 0;
     const requestLimit = getRequestLimit(plan);
 
+    // 🔹 NEW: Enforce minimum 50 words
+    if (wordCount < 50) {
+      setError("⚠️ Minimum 50 words required to process text.");
+      return;
+    }
+
     // Enforce per-request cap
     if (requestLimit > 0 && wordCount > requestLimit) {
       setError(
@@ -220,7 +226,10 @@ export default function HumanizerPageContent() {
     ? inputText.trim().split(/\s+/).length
     : 0;
   const requestLimit = getRequestLimit(plan);
+
+  // 🔹 NEW: mark as exceeded if below 50
   const exceeded =
+    currentWordCount < 50 ||
     (balance !== null && currentWordCount > balance) ||
     (requestLimit > 0 && currentWordCount > requestLimit);
 
@@ -315,6 +324,7 @@ export default function HumanizerPageContent() {
                     : 0;
 
                   if (
+                    wordCount < 50 || // 🔹 NEW
                     (balance !== null && wordCount > balance) ||
                     (requestLimit > 0 && wordCount > requestLimit)
                   ) {
@@ -337,18 +347,23 @@ export default function HumanizerPageContent() {
                 {exceeded && (
                   <div className="mt-2 flex justify-start gap-2 text-destructive items-center">
                     <span>
-                      Word count exceeded{" "}
-                      {requestLimit > 0 && `(max ${requestLimit})`}
+                      {currentWordCount < 50
+                        ? "⚠️ Minimum 50 words required"
+                        : `Word count exceeded ${
+                            requestLimit > 0 && `(max ${requestLimit})`
+                          }`}
                     </span>
-                    <Link href="/pricing">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-xs cursor-pointer bg-accent"
-                      >
-                        Please upgrade your plan
-                      </Button>
-                    </Link>
+                    {currentWordCount >= 50 && (
+                      <Link href="/pricing">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs cursor-pointer bg-accent"
+                        >
+                          Please upgrade your plan
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 )}
               </div>
@@ -363,7 +378,7 @@ export default function HumanizerPageContent() {
                       handleHumanize();
                     }
                   }}
-                  disabled={!inputText || loading}
+                  disabled={!inputText || loading || currentWordCount < 50} // 🔹 NEW
                 >
                   {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
                   {loading ? "Humanizing..." : "Humanize"}
