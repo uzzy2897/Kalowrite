@@ -43,11 +43,9 @@ export default function HumanizerPageContent() {
 
   // Balance state
   const [balance, setBalance] = useState<number | null>(null);
+  const [startingBalance, setStartingBalance] = useState<number | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
-
-  // Global design max (so progress bar doesn't break with large balances)
-  const maxBalance = 50000; 
 
   // Redirect if not signed in
   useEffect(() => {
@@ -69,9 +67,13 @@ export default function HumanizerPageContent() {
     } else if (data) {
       setBalance(data.balance);
       setPlan(data.plan);
+      if (!startingBalance) {
+        setStartingBalance(data.balance); // take a snapshot for progress bar
+      }
     } else {
       setBalance(0);
       setPlan(null);
+      if (!startingBalance) setStartingBalance(0);
     }
     setBalanceLoading(false);
   };
@@ -222,6 +224,16 @@ export default function HumanizerPageContent() {
     (balance !== null && currentWordCount > balance) ||
     (requestLimit > 0 && currentWordCount > requestLimit);
 
+  // Progress bar percent
+  const percent =
+    balance !== null && startingBalance !== null && startingBalance > 0
+      ? Math.min((balance / startingBalance) * 100, 100)
+      : 0;
+
+  let color = "bg-emerald-500";
+  if (percent <= 30) color = "bg-red-500";
+  else if (percent <= 69) color = "bg-yellow-600";
+
   return (
     <main className="flex relative min-h-screen mb-24">
       {/* Sidebar */}
@@ -270,29 +282,13 @@ export default function HumanizerPageContent() {
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {plan ? `${plan.toUpperCase()}: ` : ""}
-                      {balance} words left
+                      {balance} / {startingBalance} words left
                     </div>
                     <div className="h-2 bg-muted rounded-full w-64 overflow-hidden">
-                      {(() => {
-                        const percent =
-                          balance !== null && maxBalance > 0
-                            ? Math.min((balance / maxBalance) * 100, 100)
-                            : 0;
-
-                        let color = "bg-emerald-500"; // green
-                        if (percent <= 30) {
-                          color = "bg-red-500";
-                        } else if (percent <= 69) {
-                          color = "bg-yellow-600";
-                        }
-
-                        return (
-                          <div
-                            className={`h-full transition-all duration-300 ${color}`}
-                            style={{ width: `${percent}%` }}
-                          />
-                        );
-                      })()}
+                      <div
+                        className={`h-full transition-all duration-300 ${color}`}
+                        style={{ width: `${percent}%` }}
+                      />
                     </div>
                   </div>
                 )
@@ -307,6 +303,7 @@ export default function HumanizerPageContent() {
 
           {/* Input + Output */}
           <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
+            {/* Input box */}
             <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
               <h3 className="font-semibold mb-2">Input</h3>
               <textarea
@@ -374,7 +371,7 @@ export default function HumanizerPageContent() {
               </div>
             </div>
 
-            {/* Output */}
+            {/* Output box */}
             <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
               <h3 className="font-semibold mb-2">Output</h3>
               <div className="flex-grow text-sm overflow-auto whitespace-pre-line rounded-md">
