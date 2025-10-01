@@ -233,26 +233,32 @@ export default function HumanizerPageContent() {
                       {balance} words left
                     </div>
                     <div className="h-2 bg-muted rounded-full w-64 overflow-hidden">
-                      
-                      <div
-                        className="h-full bg-emerald-500 transition-all duration-300"
-                        style={{
-                          width: `${
-                            plan === "free_user"
-                              ? (balance / 500) * 100
-                              : plan === "basic-plan"
-                              ? (balance / 100) * 100
-                              : plan === "basic-plan"
-                              ? (balance / 500) * 100
-                              : plan === "pro-plan"
-                              ? (balance / 1500) * 100
-                              : plan === "ultra-plan"
-                              ? (balance / 3000) * 100
-                              : 0
-                          }%`,
-                        }}
-                      />
-                    </div>
+  {(() => {
+    let max = 0;
+
+    if (plan === "free_user") max = 500;
+    else if (plan === "basic-plan") max = 100;
+    else if (plan === "pro-plan") max = 1500;
+    else if (plan === "ultra-plan") max = 3000;
+
+    const percent = max > 0 ? (balance / max) * 100 : 0;
+
+    let color = "bg-emerald-500"; // default green
+    if (percent <= 30) {
+      color = "bg-red-500";
+    } else if (percent <= 69) {
+      color = "bg-yellow-600"; // dark yellow
+    }
+
+    return (
+      <div
+        className={`h-full transition-all duration-300 ${color}`}
+        style={{ width: `${percent}%` }}
+      />
+    );
+  })()}
+</div>
+
               
                   </div>
                 )
@@ -304,6 +310,26 @@ export default function HumanizerPageContent() {
       </div>
     )}
   </div>
+  <div className="flex justify-end">
+  <Button
+    size="lg"
+    className="  text-white  mt-4 w-fit bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-md px-6 py-3 flex items-center justify-center"
+    onClick={() => {
+      if (balance !== null && (balance <= 0 || exceeded)) {
+        // 🚀 redirect to pricing if balance is out
+        router.push("/pricing");
+      } else {
+        handleHumanize();
+      }
+    }}
+    disabled={!inputText || loading}
+  >
+    {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
+    {loading ? "Humanizing..." : "Humanize"}
+  </Button>
+
+  </div>
+
 </div>
 
         
@@ -347,26 +373,7 @@ export default function HumanizerPageContent() {
         </div>
         
 
-        {/* Humanize Button */}
-        <section className="flex justify-center">
-  <Button
-    size="lg"
-    className="lg:static fixed bottom-16 w-64 lg:w-fit text-white left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-full px-6 py-3 flex items-center justify-center"
-    onClick={() => {
-      if (balance !== null && (balance <= 0 || exceeded)) {
-        // 🚀 redirect to pricing if balance is out
-        router.push("/pricing");
-      } else {
-        handleHumanize();
-      }
-    }}
-    disabled={!inputText || loading}
-  >
-    {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
-    {loading ? "Humanizing..." : "Humanize"}
-  </Button>
-</section>
-
+ 
       </div>
     </main>
   );
