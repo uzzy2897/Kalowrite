@@ -31,25 +31,48 @@ export async function POST(req: Request) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
+
     const userId = session.metadata?.userId;
+    const words = session.metadata?.words
+      ? parseInt(session.metadata.words, 10)
+      : 0;
 
-    try {
-      const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
-      const priceId = lineItems.data[0]?.price?.id;
+    console.log("🟢 Checkout completed:", {
+      userId,
+      words,
+      sessionId: session.id,
+    });
 
-      console.log("💰 Price from checkout:", priceId);
+    if (userId && words > 0) {
+      try {
+        // 1️⃣ Check if this session was already processed
+        const { data: existing } = await supabaseAdmin
+          .from("stripe_events")
+          .select("id")
+          .eq("id", session.id)
+          .single();
 
-      // 🔹 Hardcoded mapping
-      let credits = 0;
-      if (priceId === "price_1SDRHaDpLt9MGk2XRVUBDNxF") credits = 100;
-      if (priceId === "price_1SDSAMPLEabcdEfgh123456") credits = 500; // replace with real 500-credit price_id
+        if (existing) {
+          console.warn(`⚠️ Session ${session.id} already processed, skipping`);
+          return new Response("Already processed", { status: 200 });
+        }
 
-      if (userId && credits > 0) {
-        console.log("🟢 Incrementing balance with:", { uid: userId, amount: credits });
+        // 2️⃣ Insert into stripe_events (to lock this session)
+        const { error: insertError } = await supabaseAdmin
+          .from("stripe_events")
+          .insert([
+            { id: session.id, user_id: userId, words: words },
+          ]);
 
+        if (insertError) {
+          console.error("❌ Error inserting stripe_events:", insertError.message);
+          return new Response("Insert error", { status: 500 });
+        }
+
+        // 3️⃣ Increment balance in Supabase
         const { data, error } = await supabaseAdmin.rpc("increment_balance", {
           uid: userId,
-          amount: credits,
+          amount: words,
         });
 
         if (error) {
@@ -57,13 +80,18 @@ export async function POST(req: Request) {
           return new Response("Supabase error", { status: 500 });
         }
 
-        console.log(`✅ Balance incremented for ${userId}: +${credits}`, data);
-      } else {
-        console.warn("⚠️ No userId or credits resolved from checkout.", { userId, priceId });
+        console.log(
+          `✅ Balance incremented for ${userId}: +${words}, new balance: ${data}`
+        );
+      } catch (err: any) {
+        console.error("❌ Error updating Supabase:", err.message);
+        return new Response("Internal error", { status: 500 });
       }
-    } catch (err: any) {
-      console.error("❌ Error handling checkout.session.completed:", err.message);
-      return new Response("Internal error", { status: 500 });
+    } else {
+      console.warn("⚠️ Missing userId or words in metadata", {
+        userId,
+        words,
+      });
     }
   }
 
