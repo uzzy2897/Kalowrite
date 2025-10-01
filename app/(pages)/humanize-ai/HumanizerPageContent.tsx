@@ -328,11 +328,12 @@ const fetchBalance = async () => {
           <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
             {/* Input box */}
         {/* Input box */}
+{/* Input box */}
 <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
   <h3 className="font-semibold mb-2">Input</h3>
 
-  {/* Container with overlay */}
-  <div className="relative flex-grow">
+  {/* Scrollable container with overlay */}
+  <div className="relative flex-grow overflow-auto rounded-md border bg-background">
     {/* Highlighted text layer */}
     <div
       className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-sm leading-relaxed p-2"
@@ -362,7 +363,7 @@ const fetchBalance = async () => {
       value={inputText}
       onChange={(e) => setInputText(e.target.value)}
       placeholder="Paste your AI text here..."
-      className="absolute inset-0 w-full h-full resize-none outline-none bg-transparent text-transparent caret-foreground text-sm leading-relaxed p-2"
+      className="relative z-10 w-full h-full resize-none outline-none bg-transparent text-transparent caret-foreground text-sm leading-relaxed p-2"
       style={{ fontFamily: "inherit" }}
     />
   </div>
@@ -413,6 +414,7 @@ const fetchBalance = async () => {
     </Button>
   </div>
 </div>
+
 
             {/* Output box */}
             <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
