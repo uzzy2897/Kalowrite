@@ -300,132 +300,113 @@ export default function HumanizerPageContent() {
             </TypographyP>
           </section>
 
-       {/* Input + Output */}
-<section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
+          {/* Input + Output */}
+          <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
+            <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
+              <h3 className="font-semibold mb-2">Input</h3>
+              <textarea
+                value={inputText}
+                onChange={(e) => {
+                  const text = e.target.value;
+                  const wordCount = text.trim()
+                    ? text.trim().split(/\s+/).length
+                    : 0;
 
- {/* Input */}
-<div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px] relative">
-  <h3 className="font-semibold mb-2">Input</h3>
+                  if (
+                    (balance !== null && wordCount > balance) ||
+                    (requestLimit > 0 && wordCount > requestLimit)
+                  ) {
+                    setError("exceeded");
+                  } else {
+                    setError("");
+                  }
 
-  <div className="relative flex-grow overflow-auto rounded-md border">
-    {/* Highlight layer */}
-    <div
-      className="absolute inset-0 p-2 whitespace-pre-wrap text-sm leading-relaxed pointer-events-none"
-      aria-hidden="true"
-    >
-      {(() => {
-        if (!inputText) return null;
+                  setInputText(text);
+                }}
+                placeholder="Paste your AI text here..."
+                className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
+              />
+              <div className="mt-2 text-xs flex flex-col">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>{currentWordCount} words</span>
+                  {balance !== null && <span>{balance} available</span>}
+                </div>
 
-        const words = inputText.split(/\s+/);
-        const requestLimit = getRequestLimit(plan);
-        const allowedCount = Math.min(requestLimit, balance ?? requestLimit);
+                {exceeded && (
+                  <div className="mt-2 flex justify-start gap-2 text-destructive items-center">
+                    <span>
+                      Word count exceeded {requestLimit > 0 && `(max ${requestLimit})`}
+                    </span>
+                    <Link href="/pricing">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs cursor-pointer bg-accent"
+                      >
+                        Please upgrade your plan
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  size="lg"
+                  className="text-white mt-4 w-fit bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-md px-6 py-3 flex items-center justify-center"
+                  onClick={() => {
+                    if (balance !== null && (balance <= 0 || exceeded)) {
+                      router.push("/pricing");
+                    } else {
+                      handleHumanize();
+                    }
+                  }}
+                  disabled={!inputText || loading}
+                >
+                  {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
+                  {loading ? "Humanizing..." : "Humanize"}
+                </Button>
+              </div>
+            </div>
 
-        return words.map((word, i) => {
-          const isOverflow = i >= allowedCount;
-          return (
-            <span
-              key={i}
-              className={isOverflow ? "text-gray-400" : "text-foreground"}
-            >
-              {word + (i < words.length - 1 ? " " : "")}
-            </span>
-          );
-        });
-      })()}
-    </div>
-
-    {/* Transparent textarea on top */}
-    <textarea
-      value={inputText}
-      onChange={(e) => {
-        const text = e.target.value;
-        const wordCount = text.trim()
-          ? text.trim().split(/\s+/).length
-          : 0;
-
-        if (
-          (balance !== null && wordCount > balance) ||
-          (requestLimit > 0 && wordCount > requestLimit)
-        ) {
-          setError("exceeded");
-        } else {
-          setError("");
-        }
-
-        setInputText(text);
-      }}
-      placeholder="Paste your AI text here..."
-      className="absolute inset-0 w-full h-full p-2 resize-none outline-none bg-transparent text-transparent caret-emerald-500 text-sm leading-relaxed"
-    />
-  </div>
-
-  {/* Word info + error */}
-  <div className="mt-2 text-xs flex flex-col">
-    <div className="flex justify-between text-muted-foreground">
-      <span>{currentWordCount} words</span>
-      {balance !== null && <span>{balance} available</span>}
-    </div>
-
-    {exceeded && (
-      <div className="mt-2 flex justify-start gap-2 text-destructive items-center">
-        <span>
-          Word count exceeded {requestLimit > 0 && `(max ${requestLimit})`}
-        </span>
-        <Link href="/pricing">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-xs cursor-pointer bg-accent"
-          >
-            Please upgrade your plan
-          </Button>
-        </Link>
-      </div>
-    )}
-  </div>
-</div>
-
-
-  {/* Output */}
-  <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
-    <h3 className="font-semibold mb-2">Output</h3>
-    <div className="flex-grow text-sm overflow-auto whitespace-pre-line rounded-md border p-2">
-      {loading ? (
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="animate-spin h-4 w-4" /> Processing...
-        </div>
-      ) : (
-        outputText || "Your humanized text will appear here."
-      )}
-    </div>
-    <div className="flex gap-2 mt-4">
-      <Button
-        variant="secondary"
-        disabled={!outputText}
-        onClick={() => navigator.clipboard.writeText(outputText)}
-      >
-        <ClipboardCopy className="h-4 w-4 mr-1" /> Copy
-      </Button>
-      <Button
-        variant="destructive"
-        disabled={!inputText && !outputText}
-        onClick={handleClearSession}
-      >
-        <Trash2 className="h-4 w-4 mr-1" /> Clear
-      </Button>
-      {outputText && balance !== null && balance > 0 && !exceeded && (
-        <Button
-          variant="outline"
-          onClick={handleHumanize}
-          disabled={loading}
-        >
-          <Repeat className="h-4 w-4 mr-1" /> Regenerate
-        </Button>
-      )}
-    </div>
-  </div>
-</section>
-
+            {/* Output */}
+            <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
+              <h3 className="font-semibold mb-2">Output</h3>
+              <div className="flex-grow text-sm overflow-auto whitespace-pre-line rounded-md">
+                {loading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="animate-spin h-4 w-4" /> Processing...
+                  </div>
+                ) : (
+                  outputText || "Your humanized text will appear here."
+                )}
+              </div>
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant="secondary"
+                  disabled={!outputText}
+                  onClick={() => navigator.clipboard.writeText(outputText)}
+                >
+                  <ClipboardCopy className="h-4 w-4 mr-1" /> Copy
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={!inputText && !outputText}
+                  onClick={handleClearSession}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" /> Clear
+                </Button>
+                {outputText && balance !== null && balance > 0 && !exceeded && (
+                  <Button
+                    variant="outline"
+                    onClick={handleHumanize}
+                    disabled={loading}
+                  >
+                    <Repeat className="h-4 w-4 mr-1" /> Regenerate
+                  </Button>
+                )}
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </main>
