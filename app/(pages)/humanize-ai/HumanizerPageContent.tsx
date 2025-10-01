@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, ClipboardCopy, Trash2, Repeat } from "lucide-react";
+import { Loader2, ClipboardCopy, Trash2, Repeat, ArrowRight, ChevronRight } from "lucide-react";
 import { TypographyH1, TypographyP } from "@/components/Typography";
 import Sidebar from "./Sidebar";
 import { supabase } from "@/lib/supabaseClient";
@@ -59,7 +59,6 @@ export default function HumanizerPageContent() {
       setBalance(data.balance);
       setPlan(data.plan);
     } else {
-      console.log("ℹ️ No balance found, setting default 0");
       setBalance(0);
       setPlan(null);
     }
@@ -75,6 +74,7 @@ export default function HumanizerPageContent() {
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
+
     if (!error && data) setHistory(data as HistoryItem[]);
     else if (error) console.error("❌ Supabase fetch history error:", error);
     setHistoryLoading(false);
@@ -108,7 +108,7 @@ export default function HumanizerPageContent() {
 
     const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
 
-    // ❌ Stop immediately if request words > balance
+    // Stop immediately if request words > balance
     if (balance !== null && wordCount > balance) {
       setError(
         `⚠️ You entered ${wordCount} words but only ${balance} words remain. Please upgrade your plan.`
@@ -129,7 +129,10 @@ export default function HumanizerPageContent() {
         body: JSON.stringify({ text: inputText }),
       });
 
-      if (!res.ok) throw new Error(`AI API error: ${res.statusText}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `AI API error: ${res.statusText}`);
+      }
 
       const data = await res.json();
       const humanizedText = data.humanized || "";
@@ -155,24 +158,15 @@ export default function HumanizerPageContent() {
           fetchHistory();
         }
 
-        // Deduct balance
+        // Deduct balance locally (backend also does it)
         if (balance !== null) {
           const newBalance = Math.max(balance - wordCount, 0);
           setBalance(newBalance);
-
-          const { error: balanceError } = await supabase
-            .from("user_balances")
-            .update({ balance: newBalance, updated_at: new Date().toISOString() })
-            .eq("user_id", user.id);
-
-          if (balanceError) {
-            console.error("❌ Supabase balance update error:", balanceError);
-          }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setOutputText("❌ Error: Something went wrong.");
+      setOutputText(err.message || "❌ Error: Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -186,12 +180,13 @@ export default function HumanizerPageContent() {
     );
   }
 
-  // Current word count + exceeded state
+  // Word count logic
   const currentWordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
   const exceeded = balance !== null && currentWordCount > balance;
 
   return (
     <main className="flex relative min-h-screen mb-24">
+      {/* Sidebar */}
       <div className="flex flex-col">
         <Sidebar
           onSelectHistory={handleSelectHistory}
@@ -201,6 +196,7 @@ export default function HumanizerPageContent() {
       </div>
 
       <div className="flex-1">
+        {/* Header */}
         <header className="p-4 h-16 border-b flex justify-between items-center">
           <Link href={"/"}>
             <img
@@ -211,7 +207,9 @@ export default function HumanizerPageContent() {
           </Link>
         </header>
 
+        {/* Main content */}
         <div className="max-w-7xl space-y-10 py-12 px-8 mx-auto">
+          {/* Balance */}
           <section className="flex-1 flex-col items-center gap-2 text-center">
             <div className="w-full mb-4">
               {balanceLoading ? (
@@ -219,14 +217,23 @@ export default function HumanizerPageContent() {
               ) : (
                 balance !== null && (
                   <div className="flex flex-col items-center w-full space-y-1 lg:w-full">
-                    {/* Text info */}
+                          <div className="flex gap-2 p-4 rounded-full mb-4 hover:bg-white/10 transition ease bg-card">
+          {balance !== null && balance <= 0 && (
+                <div className="text-destructive  space-x-2  text-xs  flex justify-between items-center">
+                  <span>  ⚠️ You’ve used up your balance.{" "}</span>
+                
+                  <Link href="/pricing" className="text-emerald-500 hover:underline flex ">
+                    Upgrade your plan <ChevronRight className="h-4"/>
+                  </Link>
+                </div>
+              )}
+          </div>
                     <div className="text-sm text-muted-foreground">
                       {plan ? `${plan.toUpperCase()}: ` : ""}
                       {balance} words left
                     </div>
-
-                    {/* Progress bar */}
                     <div className="h-2 bg-muted rounded-full w-64 overflow-hidden">
+                      
                       <div
                         className="h-full bg-emerald-500 transition-all duration-300"
                         style={{
@@ -244,6 +251,7 @@ export default function HumanizerPageContent() {
                         }}
                       />
                     </div>
+              
                   </div>
                 )
               )}
@@ -254,48 +262,54 @@ export default function HumanizerPageContent() {
               Paste your text below and transform it into natural content.
             </TypographyP>
           </section>
+       
 
+          {/* Input + Output */}
           <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
-            {/* Input */}
-            <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
-              <h3 className="font-semibold mb-2">Input</h3>
+          <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
+  <h3 className="font-semibold mb-2">Input</h3>
+  <textarea
+    value={inputText}
+    onChange={(e) => {
+      const text = e.target.value;
+      const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
-              <textarea
-                value={inputText}
-                onChange={(e) => {
-                  const text = e.target.value;
-                  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+      if (balance !== null && wordCount > balance) {
+        setError("exceeded"); // just a flag
+      } else {
+        setError("");
+      }
 
-                  if (balance !== null && wordCount > balance) {
-                    setError("Word count exceeded. Please upgrade your plan to increase the limit.");
-                  } else {
-                    setError("");
-                  }
+      setInputText(text); // ✅ always allow typing/paste
+    }}
+    placeholder="Paste your AI text here..."
+    className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
+  />
+  <div className="mt-2 text-xs flex flex-col">
+    <div className="flex justify-between text-muted-foreground">
+      <span>{currentWordCount} words</span>
+      {balance !== null && <span>{balance} available</span>}
+    </div>
 
-                  setInputText(text);
-                }}
-                placeholder="Paste your AI text here..."
-                className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
-              />
+    {exceeded && (
+      <div className="mt-2 flex justify-start gap-2 text-destructive items-center">
+        <span>Word count exceeded</span>
+        <Link href="/pricing">
+          <Button  size="sm" variant="ghost" className="text-xs cursor-pointer bg-accent">
+            Please upgrade your plan
+          </Button>
+        </Link>
+      </div>
+    )}
+  </div>
+</div>
 
-              {/* Live counter + error */}
-              <div className="mt-2 text-xs flex flex-col">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>{currentWordCount} words</span>
-                  {balance !== null && <span>{balance} available</span>}
-                </div>
-                {exceeded && (
-                  <span className="text-red-500 mt-1">
-                    ⚠️ Word count exceeded. Please upgrade your plan to increase the limit.
-                  </span>
-                )}
-              </div>
-            </div>
+        
 
             {/* Output */}
             <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
               <h3 className="font-semibold mb-2">Output</h3>
-              <div className="flex-grow text-sm overflow-auto whitespace-pre-line bg-muted/30 rounded-md p-3">
+              <div className="flex-grow text-sm overflow-auto whitespace-pre-line  rounded-md">
                 {loading ? (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Loader2 className="animate-spin h-4 w-4" /> Processing...
@@ -325,35 +339,32 @@ export default function HumanizerPageContent() {
                   </Button>
                 )}
               </div>
-              {balance !== null && balance <= 0 && (
-                <div className="text-red-500 text-xs mt-2">
-                  ⚠️ You’ve used up your balance.{" "}
-                  <Link href="/pricing" className="underline">
-                    Upgrade your plan
-                  </Link>
-                </div>
-              )}
+         
             </div>
           </section>
         </div>
+        
 
         {/* Humanize Button */}
         <section className="flex justify-center">
-          <Button
-            size="lg"
-            className="lg:static fixed bottom-16 w-64 lg:w-fit text-white left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-full px-6 py-3 flex items-center justify-center"
-            onClick={handleHumanize}
-            disabled={
-              !inputText ||
-              loading ||
-              (balance !== null && balance <= 0) ||
-              exceeded
-            }
-          >
-            {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
-            {loading ? "Humanizing..." : "Humanize"}
-          </Button>
-        </section>
+  <Button
+    size="lg"
+    className="lg:static fixed bottom-16 w-64 lg:w-fit text-white left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-full px-6 py-3 flex items-center justify-center"
+    onClick={() => {
+      if (balance !== null && (balance <= 0 || exceeded)) {
+        // 🚀 redirect to pricing if balance is out
+        router.push("/pricing");
+      } else {
+        handleHumanize();
+      }
+    }}
+    disabled={!inputText || loading}
+  >
+    {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
+    {loading ? "Humanizing..." : "Humanize"}
+  </Button>
+</section>
+
       </div>
     </main>
   );
