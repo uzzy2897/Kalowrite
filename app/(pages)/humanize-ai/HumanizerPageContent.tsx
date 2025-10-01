@@ -244,15 +244,48 @@ export default function HumanizerPageContent() {
 
           <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
             {/* Input */}
-            <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
-              <h3 className="font-semibold mb-2">Input</h3>
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Paste your AI text here..."
-                className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
-              />
-            </div>
+        {/* Input */}
+<div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
+  <h3 className="font-semibold mb-2">Input</h3>
+  <textarea
+    value={inputText}
+    onChange={(e) => {
+      const text = e.target.value;
+      const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+
+      // ✅ Prevent input longer than balance
+      if (balance !== null && wordCount > balance) {
+        return; // Block further typing
+      }
+
+      setInputText(text);
+    }}
+    onPaste={(e) => {
+      const pasted = e.clipboardData.getData("text");
+      const pastedWords = pasted.trim() ? pasted.trim().split(/\s+/).length : 0;
+
+      if (balance !== null && pastedWords > balance) {
+        e.preventDefault();
+        alert(`⚠️ You only have ${balance} words left. Please paste a shorter text.`);
+      }
+    }}
+    placeholder="Paste your AI text here..."
+    className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
+  />
+
+  {/* ✅ Live word counter */}
+  <div className="mt-2 text-xs text-muted-foreground flex justify-between">
+    <span>
+      {inputText.trim() ? inputText.trim().split(/\s+/).length : 0} words
+    </span>
+    {balance !== null && (
+      <span>
+        {balance} available
+      </span>
+    )}
+  </div>
+</div>
+
 
             {/* Output */}
             <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
