@@ -5,7 +5,13 @@ import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, ClipboardCopy, Trash2, Repeat, ArrowRight, ChevronRight } from "lucide-react";
+import {
+  Loader2,
+  ClipboardCopy,
+  Trash2,
+  Repeat,
+  ChevronRight,
+} from "lucide-react";
 import { TypographyH1, TypographyP } from "@/components/Typography";
 import Sidebar from "./Sidebar";
 import { supabase } from "@/lib/supabaseClient";
@@ -28,7 +34,9 @@ export default function HumanizerPageContent() {
   const [inputText, setInputText] = useState(initialText);
   const [outputText, setOutputText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(
+    null
+  );
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState("");
@@ -102,26 +110,48 @@ export default function HumanizerPageContent() {
     setError("");
   };
 
+  // helper: get per-request limit based on plan
+  const getRequestLimit = (plan: string | null) => {
+    if (plan === "free_user" || plan === "basic-plan") return 500;
+    if (plan === "pro-plan") return 1500;
+    if (plan === "ultra-plan") return 3000;
+    return 0;
+  };
+
   // Humanize text
   const handleHumanize = async () => {
     if (!inputText) return;
 
-    const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
+    const wordCount = inputText.trim()
+      ? inputText.trim().split(/\s+/).length
+      : 0;
+    const requestLimit = getRequestLimit(plan);
 
-    // Stop immediately if request words > balance
+    // Enforce per-request cap
+    if (requestLimit > 0 && wordCount > requestLimit) {
+      setError(
+        `⚠️ Your plan allows max ${requestLimit} words per request. You entered ${wordCount}.`
+      );
+      return;
+    }
+
+    // Enforce balance
     if (balance !== null && wordCount > balance) {
       setError(
-        `⚠️ You entered ${wordCount} words but only ${balance} words remain. Please upgrade your plan.`
+        `⚠️ You entered ${wordCount} words but only ${balance} remain. Please upgrade your plan.`
       );
       return;
     }
 
     if (balance !== null && balance <= 0) {
-      setOutputText("⚠️ You’ve reached your word limit. Please upgrade your plan.");
+      setOutputText(
+        "⚠️ You’ve reached your word limit. Please upgrade your plan."
+      );
       return;
     }
 
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/humanize", {
         method: "POST",
@@ -181,8 +211,13 @@ export default function HumanizerPageContent() {
   }
 
   // Word count logic
-  const currentWordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
-  const exceeded = balance !== null && currentWordCount > balance;
+  const currentWordCount = inputText.trim()
+    ? inputText.trim().split(/\s+/).length
+    : 0;
+  const requestLimit = getRequestLimit(plan);
+  const exceeded =
+    (balance !== null && currentWordCount > balance) ||
+    (requestLimit > 0 && currentWordCount > requestLimit);
 
   return (
     <main className="flex relative min-h-screen mb-24">
@@ -217,49 +252,43 @@ export default function HumanizerPageContent() {
               ) : (
                 balance !== null && (
                   <div className="flex flex-col items-center w-full space-y-1 lg:w-full">
-                          <div className="flex gap-2 p-4 rounded-full mb-4 hover:bg-white/10 transition ease bg-card">
-          {balance !== null && balance <= 0 && (
-                <div className="text-destructive  space-x-2  text-xs  flex justify-between items-center">
-                  <span>  ⚠️ You’ve used up your balance.{" "}</span>
-                
-                  <Link href="/pricing" className="text-emerald-500 hover:underline flex ">
-                    Upgrade your plan <ChevronRight className="h-4"/>
-                  </Link>
-                </div>
-              )}
-          </div>
+                    <div className="flex gap-2 p-4 rounded-full mb-4 hover:bg-white/10 transition ease bg-card">
+                      {balance !== null && balance <= 0 && (
+                        <div className="text-destructive space-x-2 text-xs flex justify-between items-center">
+                          <span>⚠️ You’ve used up your balance.</span>
+                          <Link
+                            href="/pricing"
+                            className="text-emerald-500 hover:underline flex"
+                          >
+                            Upgrade your plan <ChevronRight className="h-4" />
+                          </Link>
+                        </div>
+                      )}
+                    </div>
                     <div className="text-sm text-muted-foreground">
                       {plan ? `${plan.toUpperCase()}: ` : ""}
                       {balance} words left
                     </div>
                     <div className="h-2 bg-muted rounded-full w-64 overflow-hidden">
-  {(() => {
-    let max = 0;
+                      {(() => {
+                        let max = getRequestLimit(plan);
+                        const percent = max > 0 ? (balance / max) * 100 : 0;
 
-    if (plan === "free_user") max = 500;
-    else if (plan === "basic-plan") max = 100;
-    else if (plan === "pro-plan") max = 1500;
-    else if (plan === "ultra-plan") max = 3000;
+                        let color = "bg-emerald-500"; // default green
+                        if (percent <= 30) {
+                          color = "bg-red-500";
+                        } else if (percent <= 69) {
+                          color = "bg-yellow-600"; // dark yellow
+                        }
 
-    const percent = max > 0 ? (balance / max) * 100 : 0;
-
-    let color = "bg-emerald-500"; // default green
-    if (percent <= 30) {
-      color = "bg-red-500";
-    } else if (percent <= 69) {
-      color = "bg-yellow-600"; // dark yellow
-    }
-
-    return (
-      <div
-        className={`h-full transition-all duration-300 ${color}`}
-        style={{ width: `${percent}%` }}
-      />
-    );
-  })()}
-</div>
-
-              
+                        return (
+                          <div
+                            className={`h-full transition-all duration-300 ${color}`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        );
+                      })()}
+                    </div>
                   </div>
                 )
               )}
@@ -270,29 +299,67 @@ export default function HumanizerPageContent() {
               Paste your text below and transform it into natural content.
             </TypographyP>
           </section>
-       
 
-          {/* Input + Output */}
-          <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
-          <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
+       {/* Input + Output */}
+<section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
+
+ {/* Input */}
+<div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px] relative">
   <h3 className="font-semibold mb-2">Input</h3>
-  <textarea
-    value={inputText}
-    onChange={(e) => {
-      const text = e.target.value;
-      const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
-      if (balance !== null && wordCount > balance) {
-        setError("exceeded"); // just a flag
-      } else {
-        setError("");
-      }
+  <div className="relative flex-grow overflow-auto rounded-md border">
+    {/* Highlight layer */}
+    <div
+      className="absolute inset-0 p-2 whitespace-pre-wrap text-sm leading-relaxed pointer-events-none"
+      aria-hidden="true"
+    >
+      {(() => {
+        if (!inputText) return null;
 
-      setInputText(text); // ✅ always allow typing/paste
-    }}
-    placeholder="Paste your AI text here..."
-    className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
-  />
+        const words = inputText.split(/\s+/);
+        const requestLimit = getRequestLimit(plan);
+        const allowedCount = Math.min(requestLimit, balance ?? requestLimit);
+
+        return words.map((word, i) => {
+          const isOverflow = i >= allowedCount;
+          return (
+            <span
+              key={i}
+              className={isOverflow ? "text-gray-400" : "text-foreground"}
+            >
+              {word + (i < words.length - 1 ? " " : "")}
+            </span>
+          );
+        });
+      })()}
+    </div>
+
+    {/* Transparent textarea on top */}
+    <textarea
+      value={inputText}
+      onChange={(e) => {
+        const text = e.target.value;
+        const wordCount = text.trim()
+          ? text.trim().split(/\s+/).length
+          : 0;
+
+        if (
+          (balance !== null && wordCount > balance) ||
+          (requestLimit > 0 && wordCount > requestLimit)
+        ) {
+          setError("exceeded");
+        } else {
+          setError("");
+        }
+
+        setInputText(text);
+      }}
+      placeholder="Paste your AI text here..."
+      className="absolute inset-0 w-full h-full p-2 resize-none outline-none bg-transparent text-transparent caret-emerald-500 text-sm leading-relaxed"
+    />
+  </div>
+
+  {/* Word info + error */}
   <div className="mt-2 text-xs flex flex-col">
     <div className="flex justify-between text-muted-foreground">
       <span>{currentWordCount} words</span>
@@ -301,79 +368,65 @@ export default function HumanizerPageContent() {
 
     {exceeded && (
       <div className="mt-2 flex justify-start gap-2 text-destructive items-center">
-        <span>Word count exceeded</span>
+        <span>
+          Word count exceeded {requestLimit > 0 && `(max ${requestLimit})`}
+        </span>
         <Link href="/pricing">
-          <Button  size="sm" variant="ghost" className="text-xs cursor-pointer bg-accent">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs cursor-pointer bg-accent"
+          >
             Please upgrade your plan
           </Button>
         </Link>
       </div>
     )}
   </div>
-  <div className="flex justify-end">
-  <Button
-    size="lg"
-    className="  text-white  mt-4 w-fit bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-md px-6 py-3 flex items-center justify-center"
-    onClick={() => {
-      if (balance !== null && (balance <= 0 || exceeded)) {
-        // 🚀 redirect to pricing if balance is out
-        router.push("/pricing");
-      } else {
-        handleHumanize();
-      }
-    }}
-    disabled={!inputText || loading}
-  >
-    {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
-    {loading ? "Humanizing..." : "Humanize"}
-  </Button>
-
-  </div>
-
 </div>
 
-        
 
-            {/* Output */}
-            <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
-              <h3 className="font-semibold mb-2">Output</h3>
-              <div className="flex-grow text-sm overflow-auto whitespace-pre-line  rounded-md">
-                {loading ? (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="animate-spin h-4 w-4" /> Processing...
-                  </div>
-                ) : (
-                  outputText || "Your humanized text will appear here."
-                )}
-              </div>
-              <div className="flex gap-2 mt-4">
-                <Button
-                  variant="secondary"
-                  disabled={!outputText}
-                  onClick={() => navigator.clipboard.writeText(outputText)}
-                >
-                  <ClipboardCopy className="h-4 w-4 mr-1" /> Copy
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={!inputText && !outputText}
-                  onClick={handleClearSession}
-                >
-                  <Trash2 className="h-4 w-4 mr-1" /> Clear
-                </Button>
-                {outputText && balance !== null && balance > 0 && !exceeded && (
-                  <Button variant="outline" onClick={handleHumanize} disabled={loading}>
-                    <Repeat className="h-4 w-4 mr-1" /> Regenerate
-                  </Button>
-                )}
-              </div>
-         
-            </div>
-          </section>
+  {/* Output */}
+  <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
+    <h3 className="font-semibold mb-2">Output</h3>
+    <div className="flex-grow text-sm overflow-auto whitespace-pre-line rounded-md border p-2">
+      {loading ? (
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="animate-spin h-4 w-4" /> Processing...
         </div>
-        
+      ) : (
+        outputText || "Your humanized text will appear here."
+      )}
+    </div>
+    <div className="flex gap-2 mt-4">
+      <Button
+        variant="secondary"
+        disabled={!outputText}
+        onClick={() => navigator.clipboard.writeText(outputText)}
+      >
+        <ClipboardCopy className="h-4 w-4 mr-1" /> Copy
+      </Button>
+      <Button
+        variant="destructive"
+        disabled={!inputText && !outputText}
+        onClick={handleClearSession}
+      >
+        <Trash2 className="h-4 w-4 mr-1" /> Clear
+      </Button>
+      {outputText && balance !== null && balance > 0 && !exceeded && (
+        <Button
+          variant="outline"
+          onClick={handleHumanize}
+          disabled={loading}
+        >
+          <Repeat className="h-4 w-4 mr-1" /> Regenerate
+        </Button>
+      )}
+    </div>
+  </div>
+</section>
 
- 
+        </div>
       </div>
     </main>
   );
