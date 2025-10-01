@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { PricingTable } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 
-
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
   visible: (delay = 0) => ({
@@ -75,9 +74,12 @@ export default function PricingPage() {
         </motion.div>
 
         <motion.div variants={fadeUp} custom={0.8} className="flex gap-4">
-          {/* ✅ Buttons for different packs */}
-          <BuyCreditsButton priceId={process.env.NEXT_PUBLIC_STRIPE_PRICE_100!} label="Buy 100 Credits" />
-          <BuyCreditsButton priceId={process.env.NEXT_PUBLIC_STRIPE_PRICE_500!} label="Buy 500 Credits" />
+          {/* ✅ Hardcoded Stripe Price IDs */}
+          <BuyCreditsButton 
+            priceId="price_1SDRHaDpLt9MGk2XRVUBDNxF" 
+            label="Buy 100 Credits" 
+          />
+       
         </motion.div>
       </motion.section>
     </div>
