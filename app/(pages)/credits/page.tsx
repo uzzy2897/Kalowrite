@@ -1,9 +1,9 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
-export default function CreditsPage() {
+function CreditsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<"success" | "canceled" | null>(null);
@@ -56,5 +56,13 @@ export default function CreditsPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function CreditsPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20">Loading...</div>}>
+      <CreditsPageContent />
+    </Suspense>
   );
 }
