@@ -397,21 +397,22 @@ const fetchBalance = async () => {
   </div>
 
   <div className="flex justify-end">
-    <Button
-      size="lg"
-      className="text-white mt-4 w-fit bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-md px-6 py-3 flex items-center justify-center"
-      onClick={() => {
-        if (balance !== null && (balance <= 0 || exceeded)) {
-          router.push("/pricing");
-        } else {
-          handleHumanize();
-        }
-      }}
-      disabled={!inputText || loading || currentWordCount < 50}
-    >
-      {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
-      {loading ? "Humanizing..." : "Humanize"}
-    </Button>
+  <Button
+  size="lg"
+  className="text-white mt-4 w-fit bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-md px-6 py-3 flex items-center justify-center"
+  onClick={() => {
+    if (balance !== null && (balance <= 0 || exceeded)) {
+      router.push("/pricing");
+    } else {
+      handleHumanize();
+    }
+  }}
+  disabled={!inputText || loading || currentWordCount < 50 || exceeded} // 🔹 added `exceeded`
+>
+  {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
+  {loading ? "Humanizing..." : "Humanize"}
+</Button>
+
   </div>
 </div>
 
