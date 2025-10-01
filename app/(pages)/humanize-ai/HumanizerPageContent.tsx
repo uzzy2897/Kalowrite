@@ -46,6 +46,9 @@ export default function HumanizerPageContent() {
   const [plan, setPlan] = useState<string | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
+  // Global design max (so progress bar doesn't break with large balances)
+  const maxBalance = 50000; 
+
   // Redirect if not signed in
   useEffect(() => {
     if (isLoaded && !isSignedIn) router.push("/auth/sign-in");
@@ -110,7 +113,7 @@ export default function HumanizerPageContent() {
     setError("");
   };
 
-  // helper: get per-request limit based on plan
+  // helper: per-request cap (not total balance)
   const getRequestLimit = (plan: string | null) => {
     if (plan === "free_user" || plan === "basic-plan") return 500;
     if (plan === "pro-plan") return 1500;
@@ -188,7 +191,7 @@ export default function HumanizerPageContent() {
           fetchHistory();
         }
 
-        // Deduct balance locally (backend also does it)
+        // Deduct balance locally
         if (balance !== null) {
           const newBalance = Math.max(balance - wordCount, 0);
           setBalance(newBalance);
@@ -271,14 +274,16 @@ export default function HumanizerPageContent() {
                     </div>
                     <div className="h-2 bg-muted rounded-full w-64 overflow-hidden">
                       {(() => {
-                        let max = getRequestLimit(plan);
-                        const percent = max > 0 ? (balance / max) * 100 : 0;
+                        const percent =
+                          balance !== null && maxBalance > 0
+                            ? Math.min((balance / maxBalance) * 100, 100)
+                            : 0;
 
-                        let color = "bg-emerald-500"; // default green
+                        let color = "bg-emerald-500"; // green
                         if (percent <= 30) {
                           color = "bg-red-500";
                         } else if (percent <= 69) {
-                          color = "bg-yellow-600"; // dark yellow
+                          color = "bg-yellow-600";
                         }
 
                         return (
@@ -335,7 +340,8 @@ export default function HumanizerPageContent() {
                 {exceeded && (
                   <div className="mt-2 flex justify-start gap-2 text-destructive items-center">
                     <span>
-                      Word count exceeded {requestLimit > 0 && `(max ${requestLimit})`}
+                      Word count exceeded{" "}
+                      {requestLimit > 0 && `(max ${requestLimit})`}
                     </span>
                     <Link href="/pricing">
                       <Button
