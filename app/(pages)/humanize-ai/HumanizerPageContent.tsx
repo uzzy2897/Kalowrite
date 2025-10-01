@@ -241,6 +241,8 @@ export default function HumanizerPageContent() {
                             plan === "free_user"
                               ? (balance / 500) * 100
                               : plan === "basic-plan"
+                              ? (balance / 100) * 100
+                              : plan === "basic-plan"
                               ? (balance / 500) * 100
                               : plan === "pro-plan"
                               ? (balance / 1500) * 100
