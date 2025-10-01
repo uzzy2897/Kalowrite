@@ -12,6 +12,13 @@ interface ClerkWebhookEvent {
   data: any;
 }
 
+const PLAN_BALANCES: Record<string, number> = {
+  free_user: 500,
+  basic: 500,
+  pro: 1500,
+  ultra: 3000,
+};
+
 export async function POST(req: Request) {
   const payload = await req.text();
   const headerPayload = await headers();
@@ -22,7 +29,7 @@ export async function POST(req: Request) {
     "svix-signature": headerPayload.get("svix-signature")!,
   };
 
-  // 1. Verify Clerk signature
+  // 1) Verify Clerk signature
   const wh = new Webhook(CLERK_WEBHOOK_SECRET);
   let evt: ClerkWebhookEvent;
   try {
@@ -34,7 +41,7 @@ export async function POST(req: Request) {
 
   console.log("📩 Clerk event received:", evt.type);
 
-  // Only handle subscription lifecycle events
+  // 2) Handle subscription lifecycle events only
   if (
     evt.type === "subscription.created" ||
     evt.type === "subscription.updated" ||
@@ -43,17 +50,19 @@ export async function POST(req: Request) {
     const sub = evt.data;
     console.log("📦 Subscription payload:", JSON.stringify(sub, null, 2));
 
-    // --- 2. Get user_id and email ---
-    const userId = sub?.payer?.user_id ?? null;
-    const email =
-      sub?.payer?.email_addresses?.[0]?.email_address ?? null;
+    // 3) Extract user id (supports user, user_id, payer.user_id)
+    const userId =
+      sub?.user ??
+      sub?.user_id ??
+      sub?.payer?.user_id ??
+      null;
 
-    if (!userId || !email) {
-      console.error("⚠️ Missing user_id or email in subscription payload");
-      return NextResponse.json({ error: "User data missing" }, { status: 400 });
+    if (!userId) {
+      console.error("⚠️ Missing user/user_id in subscription payload");
+      return NextResponse.json({ error: "UserId missing" }, { status: 400 });
     }
 
-    // --- 3. Upsert subscription
+    // 4) Upsert subscription record
     const subscriptionRecord = {
       id: sub.id,
       user_id: userId,
@@ -76,7 +85,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Database error" }, { status: 500 });
     }
 
-    // --- 4. Upsert subscription items
+    // 5) Upsert subscription items (if present)
+    let slugFromItems: string | null = null;
     if (Array.isArray(sub.items)) {
       const itemRecords = sub.items.map((item: any) => {
         const plan = item.plan ?? {};
@@ -93,9 +103,11 @@ export async function POST(req: Request) {
           period_start: item.period_start
             ? new Date(item.period_start).toISOString()
             : null,
-          period_end: item.period_end
-            ? new Date(item.period_end).toISOString()
-            : null,
+          // ✅ Guard against invalid negative timestamps
+          period_end:
+            item.period_end && item.period_end > 0
+              ? new Date(item.period_end).toISOString()
+              : null,
         };
       });
 
@@ -110,63 +122,49 @@ export async function POST(req: Request) {
 
       console.log("✅ Subscription items synced:", itemRecords);
 
-      // --- 5. Update user balance based on plan
-      const mainPlan = itemRecords[0];
-      if (mainPlan?.plan_slug) {
-        const slug = mainPlan.plan_slug.toLowerCase();
-        console.log("🔎 Normalized plan slug:", slug);
+      // prefer first item's slug if available
+      slugFromItems = itemRecords[0]?.plan_slug
+        ? String(itemRecords[0].plan_slug).toLowerCase()
+        : null;
+    }
 
-        // match Clerk's actual slugs
-        const PLAN_BALANCES: Record<string, number> = {
-          free_user: 100,
-          basic: 500,
-          pro: 1500,
-          ultra: 3000,
-        };
+    // 6) Balance update logic
+    let nextPlanSlug: string | null = slugFromItems;
 
-        let balance = PLAN_BALANCES[slug] ?? 0;
+    // If event is canceled, force balance to 0 and plan to "free_user"
+    if (evt.type === "subscription.canceled") {
+      nextPlanSlug = "free_user";
+    }
 
-        // --- Check for free trial abuse using email ---
-        if (slug === "free_user") {
-          const { data: existingUser } = await supabaseAdmin
-            .from("user_balances")
-            .select("free_trial_used")
-            .eq("email", email)
-            .maybeSingle();
+    if (nextPlanSlug) {
+      const normalized = nextPlanSlug.toLowerCase();
+      const nextBalance =
+        evt.type === "subscription.canceled"
+          ? 0
+          : PLAN_BALANCES[normalized] ?? 0;
 
-          if (existingUser?.free_trial_used) {
-            console.log("⚠️ Trial already used for this email, forcing balance = 0");
-            balance = 0;
-          }
-        }
-
-        // --- Upsert user balance anchored on email ---
-        const { error: balanceError } = await supabaseAdmin
-          .from("user_balances")
-          .upsert(
-            {
-              user_id: userId, // Clerk ID (changes if account deleted)
-              email,           // ✅ stable identifier
-              balance,
-              plan: slug,
-              updated_at: new Date().toISOString(),
-              free_trial_used: slug === "free_user" ? true : undefined,
-            },
-            { onConflict: "email" } // ✅ conflict check on email, not user_id
-          );
-
-        if (balanceError) {
-          console.error("❌ Supabase user_balances insert error:", balanceError);
-          return NextResponse.json(
-            { error: "Balance DB error" },
-            { status: 500 }
-          );
-        }
-
-        console.log(
-          `✅ Balance set for ${email}: ${balance} words (plan: ${slug})`
+      const { error: balanceError } = await supabaseAdmin
+        .from("user_balances")
+        .upsert(
+          {
+            user_id: userId,
+            balance: nextBalance,
+            plan: normalized,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
         );
+
+      if (balanceError) {
+        console.error("❌ Supabase user_balances insert error:", balanceError);
+        return NextResponse.json({ error: "Balance DB error" }, { status: 500 });
       }
+
+      console.log(
+        `✅ Balance set for ${userId}: ${nextBalance} (plan: ${normalized}, event: ${evt.type})`
+      );
+    } else {
+      console.log("ℹ️ No plan slug found in items; skipped balance update.");
     }
 
     console.log("✅ Subscription synced:", subscriptionRecord);
