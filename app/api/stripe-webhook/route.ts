@@ -34,14 +34,15 @@ export async function POST(req: Request) {
     const userId = session.metadata?.userId;
 
     try {
-      // get the product/price from checkout
       const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
       const priceId = lineItems.data[0]?.price?.id;
 
-      // map Stripe price → credits
+      console.log("💰 Price from checkout:", priceId);
+
+      // 🔹 Hardcoded mapping
       let credits = 0;
-      if (priceId === process.env.STRIPE_PRICE_100) credits = 100;
-      if (priceId === process.env.STRIPE_PRICE_500) credits = 500;
+      if (priceId === "price_1SDRHaDpLt9MGk2XRVUBDNxF") credits = 100;
+      if (priceId === "price_1SDSAMPLEabcdEfgh123456") credits = 500; // replace with real 500-credit price_id
 
       if (userId && credits > 0) {
         console.log("🟢 Incrementing balance with:", { uid: userId, amount: credits });
@@ -56,9 +57,9 @@ export async function POST(req: Request) {
           return new Response("Supabase error", { status: 500 });
         }
 
-        console.log("✅ Balance incremented:", data);
+        console.log(`✅ Balance incremented for ${userId}: +${credits}`, data);
       } else {
-        console.warn("⚠️ No userId or credits resolved from checkout.");
+        console.warn("⚠️ No userId or credits resolved from checkout.", { userId, priceId });
       }
     } catch (err: any) {
       console.error("❌ Error handling checkout.session.completed:", err.message);
