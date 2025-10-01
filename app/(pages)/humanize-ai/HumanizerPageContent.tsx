@@ -31,6 +31,7 @@ export default function HumanizerPageContent() {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // Balance state
   const [balance, setBalance] = useState<number | null>(null);
@@ -98,11 +99,22 @@ export default function HumanizerPageContent() {
     setInputText("");
     setOutputText("");
     setSelectedHistoryId(null);
+    setError("");
   };
 
   // Humanize text
   const handleHumanize = async () => {
     if (!inputText) return;
+
+    const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
+
+    // ❌ Stop immediately if request words > balance
+    if (balance !== null && wordCount > balance) {
+      setError(
+        `⚠️ You entered ${wordCount} words but only ${balance} words remain. Please upgrade your plan.`
+      );
+      return;
+    }
 
     if (balance !== null && balance <= 0) {
       setOutputText("⚠️ You’ve reached your word limit. Please upgrade your plan.");
@@ -174,6 +186,10 @@ export default function HumanizerPageContent() {
     );
   }
 
+  // Current word count + exceeded state
+  const currentWordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
+  const exceeded = balance !== null && currentWordCount > balance;
+
   return (
     <main className="flex relative min-h-screen mb-24">
       <div className="flex flex-col">
@@ -185,56 +201,53 @@ export default function HumanizerPageContent() {
       </div>
 
       <div className="flex-1">
-      <header className="p-4 h-16 border-b flex justify-between items-center">
-  <Link href={"/"}>
-    <img
-      className="h-6"
-      src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
-      alt="Kalowrite Logo"
-    />
-  </Link>
-
-</header>
-
+        <header className="p-4 h-16 border-b flex justify-between items-center">
+          <Link href={"/"}>
+            <img
+              className="h-6"
+              src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
+              alt="Kalowrite Logo"
+            />
+          </Link>
+        </header>
 
         <div className="max-w-7xl space-y-10 py-12 px-8 mx-auto">
-       
           <section className="flex-1 flex-col items-center gap-2 text-center">
-          <div className="w-full mb-4">
+            <div className="w-full mb-4">
+              {balanceLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              ) : (
+                balance !== null && (
+                  <div className="flex flex-col items-center w-full space-y-1 lg:w-full">
+                    {/* Text info */}
+                    <div className="text-sm text-muted-foreground">
+                      {plan ? `${plan.toUpperCase()}: ` : ""}
+                      {balance} words left
+                    </div>
 
-{balanceLoading ? (
-  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-) : (
-  balance !== null && (
-    <div className="flex flex-col items-center w-full space-y-1 lg:w-full">
-      {/* Text info */}
-      <div className="text-sm text-muted-foreground">
-        {plan ? `${plan.toUpperCase()}: ` : ""}{balance} words left
-      </div>
-
-      {/* Progress bar */}
-      <div className="h-2 bg-muted rounded-full w-64 overflow-hidden">
-        <div
-          className="h-full bg-emerald-500 transition-all duration-300"
-          style={{
-            width: `${
-              plan === "free_user"
-                ? (balance / 500) * 100
-                : plan === "basic-plan"
-                ? (balance / 500) * 100
-                : plan === "pro-plan"
-                ? (balance / 1500) * 100
-                : plan === "ultra-plan"
-                ? (balance / 3000) * 100
-                : 0
-            }%`,
-          }}
-        />
-      </div>
-    </div>
-  )
-)}
-        </div>
+                    {/* Progress bar */}
+                    <div className="h-2 bg-muted rounded-full w-64 overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-300"
+                        style={{
+                          width: `${
+                            plan === "free_user"
+                              ? (balance / 500) * 100
+                              : plan === "basic-plan"
+                              ? (balance / 500) * 100
+                              : plan === "pro-plan"
+                              ? (balance / 1500) * 100
+                              : plan === "ultra-plan"
+                              ? (balance / 3000) * 100
+                              : 0
+                          }%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
             <Badge className="mb-2">AI Humanizer</Badge>
             <TypographyH1>Humanize Your AI Text</TypographyH1>
             <TypographyP>
@@ -244,48 +257,40 @@ export default function HumanizerPageContent() {
 
           <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
             {/* Input */}
-        {/* Input */}
-<div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
-  <h3 className="font-semibold mb-2">Input</h3>
-  <textarea
-    value={inputText}
-    onChange={(e) => {
-      const text = e.target.value;
-      const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+            <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
+              <h3 className="font-semibold mb-2">Input</h3>
 
-      // ✅ Prevent input longer than balance
-      if (balance !== null && wordCount > balance) {
-        return; // Block further typing
-      }
+              <textarea
+                value={inputText}
+                onChange={(e) => {
+                  const text = e.target.value;
+                  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
 
-      setInputText(text);
-    }}
-    onPaste={(e) => {
-      const pasted = e.clipboardData.getData("text");
-      const pastedWords = pasted.trim() ? pasted.trim().split(/\s+/).length : 0;
+                  if (balance !== null && wordCount > balance) {
+                    setError("Word count exceeded. Please upgrade your plan to increase the limit.");
+                  } else {
+                    setError("");
+                  }
 
-      if (balance !== null && pastedWords > balance) {
-        e.preventDefault();
-        alert(`⚠️ You only have ${balance} words left. Please paste a shorter text.`);
-      }
-    }}
-    placeholder="Paste your AI text here..."
-    className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
-  />
+                  setInputText(text);
+                }}
+                placeholder="Paste your AI text here..."
+                className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
+              />
 
-  {/* ✅ Live word counter */}
-  <div className="mt-2 text-xs text-muted-foreground flex justify-between">
-    <span>
-      {inputText.trim() ? inputText.trim().split(/\s+/).length : 0} words
-    </span>
-    {balance !== null && (
-      <span>
-        {balance} available
-      </span>
-    )}
-  </div>
-</div>
-
+              {/* Live counter + error */}
+              <div className="mt-2 text-xs flex flex-col">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>{currentWordCount} words</span>
+                  {balance !== null && <span>{balance} available</span>}
+                </div>
+                {exceeded && (
+                  <span className="text-red-500 mt-1">
+                    ⚠️ Word count exceeded. Please upgrade your plan to increase the limit.
+                  </span>
+                )}
+              </div>
+            </div>
 
             {/* Output */}
             <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
@@ -314,7 +319,7 @@ export default function HumanizerPageContent() {
                 >
                   <Trash2 className="h-4 w-4 mr-1" /> Clear
                 </Button>
-                {outputText && balance !== null && balance > 0 && (
+                {outputText && balance !== null && balance > 0 && !exceeded && (
                   <Button variant="outline" onClick={handleHumanize} disabled={loading}>
                     <Repeat className="h-4 w-4 mr-1" /> Regenerate
                   </Button>
@@ -332,12 +337,18 @@ export default function HumanizerPageContent() {
           </section>
         </div>
 
+        {/* Humanize Button */}
         <section className="flex justify-center">
           <Button
             size="lg"
             className="lg:static fixed bottom-16 w-64 lg:w-fit text-white left-1/2 -translate-x-1/2 z-50 bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-full px-6 py-3 flex items-center justify-center"
             onClick={handleHumanize}
-            disabled={!inputText || loading || (balance !== null && balance <= 0)}
+            disabled={
+              !inputText ||
+              loading ||
+              (balance !== null && balance <= 0) ||
+              exceeded
+            }
           >
             {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
             {loading ? "Humanizing..." : "Humanize"}
