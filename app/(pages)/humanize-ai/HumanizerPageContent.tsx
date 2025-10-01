@@ -219,7 +219,7 @@ export default function HumanizerPageContent() {
           style={{
             width: `${
               plan === "free_user"
-                ? (balance / 100) * 100
+                ? (balance / 500) * 100
                 : plan === "basic-plan"
                 ? (balance / 500) * 100
                 : plan === "pro-plan"
