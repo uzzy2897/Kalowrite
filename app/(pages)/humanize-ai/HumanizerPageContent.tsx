@@ -327,63 +327,92 @@ const fetchBalance = async () => {
           {/* Input + Output */}
           <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
             {/* Input box */}
-            <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
-              <h3 className="font-semibold mb-2">Input</h3>
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Paste your AI text here..."
-                className={`flex-grow resize-none outline-none text-sm leading-relaxed ${
-                  exceeded ? "text-muted-foreground" : "text-foreground"
-                } bg-transparent`}
-              />
-              <div className="mt-2 text-xs flex flex-col">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>{currentWordCount} words</span>
-                  {balance !== null && <span>{balance} available</span>}
-                </div>
+        {/* Input box */}
+<div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
+  <h3 className="font-semibold mb-2">Input</h3>
 
-                {exceeded && (
-                  <div className="mt-2 flex justify-start gap-2 text-destructive items-center">
-                    <span>
-                      {currentWordCount < 50
-                        ? "⚠️ Minimum 50 words required"
-                        : `Word count exceeded ${
-                            requestLimit > 0 && `(max ${requestLimit})`
-                          }`}
-                    </span>
-                    {currentWordCount >= 50 && (
-                      <Link href="/pricing">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-xs cursor-pointer bg-accent"
-                        >
-                          Please upgrade your plan
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  size="lg"
-                  className="text-white mt-4 w-fit bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-md px-6 py-3 flex items-center justify-center"
-                  onClick={() => {
-                    if (balance !== null && (balance <= 0 || exceeded)) {
-                      router.push("/pricing");
-                    } else {
-                      handleHumanize();
-                    }
-                  }}
-                  disabled={!inputText || loading || currentWordCount < 50}
-                >
-                  {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
-                  {loading ? "Humanizing..." : "Humanize"}
-                </Button>
-              </div>
-            </div>
+  {/* Container with overlay */}
+  <div className="relative flex-grow">
+    {/* Highlighted text layer */}
+    <div
+      className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-sm leading-relaxed p-2"
+      style={{ fontFamily: "inherit" }}
+    >
+      {(() => {
+        const words = inputText.split(/\s+/);
+        const allowed = balance !== null ? balance : Infinity;
+        return words.map((word, i) => {
+          if (!word) return " ";
+          return (
+            <span
+              key={i}
+              className={
+                i >= allowed ? "text-muted-foreground" : "text-foreground"
+              }
+            >
+              {word + " "}
+            </span>
+          );
+        });
+      })()}
+    </div>
+
+    {/* Transparent textarea above */}
+    <textarea
+      value={inputText}
+      onChange={(e) => setInputText(e.target.value)}
+      placeholder="Paste your AI text here..."
+      className="absolute inset-0 w-full h-full resize-none outline-none bg-transparent text-transparent caret-foreground text-sm leading-relaxed p-2"
+      style={{ fontFamily: "inherit" }}
+    />
+  </div>
+
+  <div className="mt-2 text-xs flex flex-col">
+    <div className="flex justify-between text-muted-foreground">
+      <span>{currentWordCount} words</span>
+      {balance !== null && <span>{balance} available</span>}
+    </div>
+
+    {exceeded && (
+      <div className="mt-2 flex justify-start gap-2 text-destructive items-center">
+        <span>
+          {currentWordCount < 50
+            ? "⚠️ Minimum 50 words required"
+            : `Word count exceeded (max ${balance ?? requestLimit})`}
+        </span>
+        {currentWordCount >= 50 && (
+          <Link href="/pricing">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs cursor-pointer bg-accent"
+            >
+              Please upgrade your plan
+            </Button>
+          </Link>
+        )}
+      </div>
+    )}
+  </div>
+
+  <div className="flex justify-end">
+    <Button
+      size="lg"
+      className="text-white mt-4 w-fit bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-md px-6 py-3 flex items-center justify-center"
+      onClick={() => {
+        if (balance !== null && (balance <= 0 || exceeded)) {
+          router.push("/pricing");
+        } else {
+          handleHumanize();
+        }
+      }}
+      disabled={!inputText || loading || currentWordCount < 50}
+    >
+      {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
+      {loading ? "Humanizing..." : "Humanize"}
+    </Button>
+  </div>
+</div>
 
             {/* Output box */}
             <div className="flex flex-col border rounded-xl bg-card p-6 h-[500px]">
