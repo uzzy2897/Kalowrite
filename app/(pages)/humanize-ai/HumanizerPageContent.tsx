@@ -53,30 +53,61 @@ export default function HumanizerPageContent() {
   }, [isLoaded, isSignedIn, router]);
 
   // Fetch balance
-  const fetchBalance = async () => {
-    if (!user) return;
-    setBalanceLoading(true);
-    const { data, error } = await supabase
-      .from("user_balances")
-      .select("balance, plan")
-      .eq("user_id", user.id)
-      .maybeSingle();
+// Fetch balance
+const fetchBalance = async () => {
+  if (!user) return;
+  setBalanceLoading(true);
 
-    if (error) {
-      console.error("❌ Supabase fetch balance error:", error);
-    } else if (data) {
-      setBalance(data.balance);
-      setPlan(data.plan);
-      if (!startingBalance) {
-        setStartingBalance(data.balance); // take a snapshot for progress bar
-      }
+  const { data, error } = await supabase
+    .from("user_balances")
+    .select("balance, plan, starting_balance") // 🔹 include starting_balance
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("❌ Supabase fetch balance error:", error);
+  } else if (data) {
+    setBalance(data.balance);
+    setPlan(data.plan);
+
+    if (data.starting_balance) {
+      // If starting_balance already exists, use it
+      setStartingBalance(data.starting_balance);
     } else {
-      setBalance(0);
-      setPlan(null);
-      if (!startingBalance) setStartingBalance(0);
+      // 🔹 If missing, set it equal to current balance and save it in Supabase
+      setStartingBalance(data.balance);
+
+      const { error: updateError } = await supabase
+        .from("user_balances")
+        .update({ starting_balance: data.balance })
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        console.error("❌ Error updating starting balance:", updateError);
+      }
     }
-    setBalanceLoading(false);
-  };
+  } else {
+    // No row exists for this user — create one with starting balance
+    const defaultBalance = 0;
+    setBalance(defaultBalance);
+    setPlan(null);
+    setStartingBalance(defaultBalance);
+
+    const { error: insertError } = await supabase.from("user_balances").insert({
+      user_id: user.id,
+      balance: defaultBalance,
+      plan: null,
+      starting_balance: defaultBalance, // 🔹 new field stored
+    });
+
+    if (insertError) {
+      console.error("❌ Error inserting user balance:", insertError);
+    }
+  }
+
+  setBalanceLoading(false);
+};
+
 
   // Fetch history
   const fetchHistory = async () => {
@@ -115,7 +146,6 @@ export default function HumanizerPageContent() {
     setError("");
   };
 
-  // helper: per-request cap (not total balance)
   const getRequestLimit = (plan: string | null) => {
     if (plan === "free_user" || plan === "basic-plan") return 500;
     if (plan === "pro-plan") return 1500;
@@ -132,13 +162,11 @@ export default function HumanizerPageContent() {
       : 0;
     const requestLimit = getRequestLimit(plan);
 
-    // 🔹 NEW: Enforce minimum 50 words
     if (wordCount < 50) {
       setError("⚠️ Minimum 50 words required to process text.");
       return;
     }
 
-    // Enforce per-request cap
     if (requestLimit > 0 && wordCount > requestLimit) {
       setError(
         `⚠️ Your plan allows max ${requestLimit} words per request. You entered ${wordCount}.`
@@ -146,7 +174,6 @@ export default function HumanizerPageContent() {
       return;
     }
 
-    // Enforce balance
     if (balance !== null && wordCount > balance) {
       setError(
         `⚠️ You entered ${wordCount} words but only ${balance} remain. Please upgrade your plan.`
@@ -182,28 +209,18 @@ export default function HumanizerPageContent() {
       if (isSignedIn && user && humanizedText) {
         const wordCount = inputText.split(/\s+/).length;
 
-        // Insert history
-        const { data: newHistory, error: historyError } = await supabase
-          .from("humanize_history")
-          .insert({
-            user_id: user.id,
-            input_text: inputText,
-            output_text: humanizedText,
-            words_used: wordCount,
-          })
-          .select();
+        await supabase.from("humanize_history").insert({
+          user_id: user.id,
+          input_text: inputText,
+          output_text: humanizedText,
+          words_used: wordCount,
+        });
 
-        if (historyError) console.error("❌ Supabase insert error:", historyError);
-        else if (newHistory?.length) {
-          setSelectedHistoryId(newHistory[0].id);
-          fetchHistory();
-        }
-
-        // Deduct balance locally
         if (balance !== null) {
           const newBalance = Math.max(balance - wordCount, 0);
           setBalance(newBalance);
         }
+        fetchHistory();
       }
     } catch (err: any) {
       console.error(err);
@@ -221,19 +238,16 @@ export default function HumanizerPageContent() {
     );
   }
 
-  // Word count logic
   const currentWordCount = inputText.trim()
     ? inputText.trim().split(/\s+/).length
     : 0;
   const requestLimit = getRequestLimit(plan);
 
-  // 🔹 NEW: mark as exceeded if below 50
   const exceeded =
     currentWordCount < 50 ||
     (balance !== null && currentWordCount > balance) ||
     (requestLimit > 0 && currentWordCount > requestLimit);
 
-  // Progress bar percent
   const percent =
     balance !== null && startingBalance !== null && startingBalance > 0
       ? Math.min((balance / startingBalance) * 100, 100)
@@ -317,26 +331,11 @@ export default function HumanizerPageContent() {
               <h3 className="font-semibold mb-2">Input</h3>
               <textarea
                 value={inputText}
-                onChange={(e) => {
-                  const text = e.target.value;
-                  const wordCount = text.trim()
-                    ? text.trim().split(/\s+/).length
-                    : 0;
-
-                  if (
-                    wordCount < 50 || // 🔹 NEW
-                    (balance !== null && wordCount > balance) ||
-                    (requestLimit > 0 && wordCount > requestLimit)
-                  ) {
-                    setError("exceeded");
-                  } else {
-                    setError("");
-                  }
-
-                  setInputText(text);
-                }}
+                onChange={(e) => setInputText(e.target.value)}
                 placeholder="Paste your AI text here..."
-                className="flex-grow resize-none outline-none bg-transparent text-sm leading-relaxed"
+                className={`flex-grow resize-none outline-none text-sm leading-relaxed ${
+                  exceeded ? "text-muted-foreground" : "text-foreground"
+                } bg-transparent`}
               />
               <div className="mt-2 text-xs flex flex-col">
                 <div className="flex justify-between text-muted-foreground">
@@ -378,7 +377,7 @@ export default function HumanizerPageContent() {
                       handleHumanize();
                     }
                   }}
-                  disabled={!inputText || loading || currentWordCount < 50} // 🔹 NEW
+                  disabled={!inputText || loading || currentWordCount < 50}
                 >
                   {loading && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
                   {loading ? "Humanizing..." : "Humanize"}
