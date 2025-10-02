@@ -7,6 +7,7 @@ import { TypographyH1, TypographyP } from "../Typography";
 import { cn } from "@/lib/utils";
 import { AnimatedShinyText } from "../ui/animated-shiny-text";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
+import Link from "next/link";
 
 const Hero = () => {
   const [inputText, setInputText] = useState("");
@@ -49,7 +50,7 @@ const Hero = () => {
             )}
           >
             <AnimatedShinyText className="inline-flex items-center justify-center px-4 py-1 transition ease-out hover:text-neutral-600 hover:duration-300 hover:dark:text-neutral-400">
-              <span>✨ 50% OFF ON ALL PLANS</span>
+              <Link href="/pricing">✨ 50% OFF ON ALL PLANS</Link>
               <ArrowRightIcon className="ml-1 size-3 transition-transform duration-300 ease-in-out group-hover:translate-x-0.5" />
             </AnimatedShinyText>
           </div>
@@ -69,6 +70,26 @@ const Hero = () => {
             AI detection tools.
           </TypographyP>
         </div>
+        <SignedOut>
+              <div className="flex flex-col items-center gap-2 mt-6">
+                <SignInButton mode="modal">
+                  <button
+                    className="bg-emerald-500 text-sm font-semibold hover:scale-105 transition ease rounded-md hover:bg-emerald-700 px-4 py-2"
+                    onClick={() =>
+                      sessionStorage.setItem(
+                        "afterSignInRedirect",
+                        "/humanize-ai"
+                      )
+                    }
+                  >
+                    Try for Free
+                  </button>
+                </SignInButton>
+                <span className="text-xs mt-2 text-muted-foreground">
+                  No Credit Card Required
+                </span>
+              </div>
+            </SignedOut>
 
         {/* Textarea + CTA */}
         <div className="p-4 max-w-2xl w-full mt-6 mx-auto h-fit border bg-card flex flex-col gap-4 rounded-lg">
@@ -117,26 +138,7 @@ const Hero = () => {
           
         </div>
           {/* Signed-out users */}
-          <SignedOut>
-              <div className="flex flex-col items-center gap-2 mt-6">
-                <SignInButton mode="modal">
-                  <button
-                    className="bg-emerald-500 text-sm font-semibold hover:scale-105 transition ease rounded-md hover:bg-emerald-700 px-4 py-2"
-                    onClick={() =>
-                      sessionStorage.setItem(
-                        "afterSignInRedirect",
-                        "/humanize-ai"
-                      )
-                    }
-                  >
-                    Try for Free
-                  </button>
-                </SignInButton>
-                <span className="text-xs mt-2 text-muted-foreground">
-                  No Credit Card Required
-                </span>
-              </div>
-            </SignedOut>
+  
       </div>
     </section>
   );

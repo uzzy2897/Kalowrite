@@ -57,12 +57,7 @@ export default function Navbar() {
           ))}
 
           <SignedOut>
-            <button
-              className="bg-emerald-500 text-sm font-semibold rounded-md hover:bg-emerald-400 px-4 py-2 transition ease-in"
-              onClick={handleTryForFree}
-            >
-              Try for Free
-            </button>
+       
             <Link
               href={"/auth/sign-in"}
               className="border bg-primary hidden lg:flex text-neutral-950 px-4 py-2 text-sm font-semibold rounded-md items-center hover:bg-primary/70 transition ease-in"
@@ -94,7 +89,7 @@ export default function Navbar() {
             onClick={() => setIsOpen(!isOpen)}
             className="p-2 rounded-md hover:bg-neutral-800 transition"
           >
-            {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {isOpen ? <X className="h-6 w-6" /> : <img src="https://kolowrite.vercel.app/ri_menu-2-fill.svg" className="h-6 w-6" />}
           </button>
         </div>
       </nav>
@@ -115,15 +110,7 @@ export default function Navbar() {
 
           <SignedOut >
             <div className="flex w-full gap-2">
-            <button
-              className="bg-emerald-500 text-sm w-full  font-semibold rounded-md hover:bg-emerald-400 px-4 py-2 transition ease-in"
-              onClick={() => {
-                handleTryForFree();
-                setIsOpen(false);
-              }}
-            >
-              Try for Free
-            </button>
+   
             <Link
               href={"/auth/sign-in"}
               className="border bg-primary text-neutral-950 w-full flex  justify-center px-4 py-2 text-sm font-semibold rounded-md items-center hover:bg-primary/70 transition ease-in"

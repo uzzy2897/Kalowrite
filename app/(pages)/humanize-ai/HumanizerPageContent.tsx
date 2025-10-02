@@ -258,7 +258,7 @@ const fetchBalance = async () => {
   else if (percent <= 69) color = "bg-yellow-600";
 
   return (
-    <main className="flex relative min-h-screen mb-24">
+    <main className="flex relative min-h-screen ">
       {/* Sidebar */}
       <div className="flex flex-col">
         <Sidebar
@@ -317,7 +317,7 @@ const fetchBalance = async () => {
                 )
               )}
             </div>
-            <Badge className="mb-2">AI Humanizer</Badge>
+            <Badge className="mb-2 mt-4">AI Humanizer</Badge>
             <TypographyH1>Humanize Your AI Text</TypographyH1>
             <TypographyP>
               Paste your text below and transform it into natural content.
@@ -399,7 +399,7 @@ const fetchBalance = async () => {
   <div className="flex justify-end">
   <Button
   size="lg"
-  className="text-white mt-4 w-fit bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-md px-6 py-3 flex items-center justify-center"
+  className="text-white mt-4 lg:w-fit w-full bg-emerald-500 hover:bg-emerald-600 shadow-lg rounded-md px-6 py-3 flex items-center justify-center"
   onClick={() => {
     if (balance !== null && (balance <= 0 || exceeded)) {
       router.push("/pricing");

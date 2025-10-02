@@ -54,7 +54,7 @@ const Page = () => {
 
       {/* Only render once Clerk is ready */}
       <ClerkLoaded>
-        <main className="px-4 lg:px-8 max-w-7xl mx-auto space-y-24">
+        <main className="px-4 lg:px-8 max-w-7xl mx-auto space-y-10">
           <motion.div
             initial="hidden"
             whileInView="visible"

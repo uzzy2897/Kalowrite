@@ -53,7 +53,7 @@ export default function BuyWordsPage() {
         <input
           type="range"
           min={1000}
-          max={50000}
+          max={30000}
           step={500}
           value={words}
           onChange={(e) => setWords(parseInt(e.target.value))}

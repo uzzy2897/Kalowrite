@@ -8,7 +8,7 @@ export default async function HumanizerPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex items-center justify-center min-h-screen">
+        <main className="flex items-center justify-center h-screen">
           <p className="text-muted-foreground">Loading...</p>
         </main>
       }

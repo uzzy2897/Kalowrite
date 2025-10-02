@@ -28,8 +28,8 @@ export default function Footer() {
           <h3 className="font-semibold text-foreground mb-2">Links</h3>
           <ul className="space-y-1 flex gap-4">
             <li>
-              <Link href="/faq" className="hover:text-primary">
-                FAQ
+              <Link href="/blog" className="hover:text-primary">
+                Blog
               </Link>
             </li>
             <li>
@@ -57,6 +57,12 @@ export default function Footer() {
               <Link href="/terms" className="hover:text-primary">
                 Terms of Service
               </Link>
+              <Link
+          href="/legal"
+          className="underline ml-2 underline-offset-2 hover:text-primary transition-colors"
+        >
+          Read more
+        </Link>
             </li>
           </ul>
         </div>
@@ -65,12 +71,7 @@ export default function Footer() {
       {/* Disclaimer banner */}
       <div className="bg-muted/40 text-center py-3 px-4 text-sm text-muted-foreground">
         KaloWrite is not a tool for academic dishonesty or cheating.{" "}
-        <Link
-          href="/legal"
-          className="underline underline-offset-2 hover:text-primary transition-colors"
-        >
-          Read more
-        </Link>
+       
         .
       </div>
 
