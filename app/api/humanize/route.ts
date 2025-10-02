@@ -1,4 +1,3 @@
-// app/api/humanize/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -46,7 +45,7 @@ ${text}
   let output: string;
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // swap to "gpt-4o" if you want highest quality
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: "You are a humanization engine for AI text." },
         { role: "user", content: prompt },
@@ -60,8 +59,19 @@ ${text}
     return NextResponse.json({ error: "Failed to humanize text" }, { status: 500 });
   }
 
+  if (!output) {
+    return NextResponse.json({ error: "AI returned no content" }, { status: 500 });
+  }
+
   // Deduct words
-  await supabaseAdmin.rpc("deduct_balance", { uid: userId, amount: wordCount });
+  const { error: deductErr } = await supabaseAdmin.rpc("deduct_balance", {
+    uid: userId,
+    amount: wordCount,
+  });
+  if (deductErr) {
+    console.error("❌ deduct_balance failed:", deductErr);
+    return NextResponse.json({ error: "Failed to deduct balance" }, { status: 500 });
+  }
 
   // Save history
   await supabaseAdmin.from("history").insert({
