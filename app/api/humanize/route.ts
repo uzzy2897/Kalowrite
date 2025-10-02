@@ -1,139 +1,64 @@
-// app/api/humanize/route.ts
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 import { auth } from "@clerk/nextjs/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin"; // ⚠️ make sure you have this set up
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // server-side only
-});
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { humanizeWithGemini } from "@/lib/gemini";
 
 export async function POST(req: Request) {
-  try {
-    // 1) Get userId from Clerk (await!)
-    const { userId } = await auth();
+  const { userId } = await auth(); // ✅ must await here
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const { text } = await req.json();
+  const wordCount = text.trim().split(/\s+/).length;
 
-    // 2) Parse request body
-    const body = await req.json();
-    const text: string | undefined = body?.text;
+  // Balance check
+  const { data: balance } = await supabaseAdmin
+    .from("user_balance")
+    .select("balance_words")
+    .eq("user_id", userId)
+    .single();
 
-    if (!text || typeof text !== "string") {
-      return NextResponse.json({ error: "No text provided" }, { status: 400 });
-    }
+  if (!balance || balance.balance_words < wordCount) {
+    return NextResponse.json({ error: "Not enough words" }, { status: 403 });
+  }
 
-    // 3) Count words
-    const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  // Build humanizer prompt
+  const prompt = `
+You are the world's best human writer. Make sure to strictly follow ALL the guidelines mentioned in this prompt as each one of them is crucial. Failure to follow all of them will result in a huge loss and damage.
 
-    // 4) Fetch user balance
-    const { data: balanceRow, error: balanceError } = await supabaseAdmin
-      .from("user_balances")
-      .select("balance, plan")
-      .eq("user_id", userId)
-      .maybeSingle();
+Humanize the following content. Maintain the original tone while rewriting it exactly to an IELTS band 5.5 level while maintaining vocabulary and scientific terms to an IELTS band 8 level. Humanize ANY and ALL sentence structures and writing style that AI typically uses such as perplexity (this is crucial). Use a variety of long and short sentences to increase burstiness and less mechanistic flow (this is also crucial). Avoid common, overused phrases that AI often relies on (e.g., "It is important to note," "Studies have shown," "In today's fast-paced world"). Do NOT change the POV of the text.
 
-    if (balanceError || !balanceRow) {
-      console.error("❌ Balance fetch error:", balanceError);
-      return NextResponse.json({ error: "Balance not found" }, { status: 500 });
-    }
+Use simple connectors (and, but, so, because). Never use em dashes. Keep the formatting exactly how it is in the original text. The text MUST NOT lack complexity. The transitional phrases and connectors MUST be creative, and they must NOT be formulaic. The output MUST embody the creativity and richness of human writing. The syntax pattern MUST be unpredictable. Sometimes circle back or leave thoughts slightly unfinished. Include slight redundancies, natural slips, and relatable specifics. Break up repetition; no 3+ sentences starting alike. Allow small logical gaps; don’t over-explain. Lead with specific points, then add support. Incorporate creative grammatical structures. Deviate from perfect, textbook syntax to create emphasis and voice. Integrate subtle literary devices. The overall structure should feel more like a human thought process, not a machine's logical output. Vary Sentence Structure (to manage Perplexity). Ensure Clarity (to manage Perplexity). Use Repetition Deliberately (to manage Burstiness). Introduce Concepts with Word Clusters (to manage Burstiness).
 
-    const balance = balanceRow.balance;
+IMPORTANT: Review your response and ensure no em dashes '—' are included in the final output!
 
-    // 5) Reject if request words > balance
-    if (wordCount > balance) {
-      return NextResponse.json(
-        {
-          error: `Request blocked. You entered ${wordCount} words but only ${balance} remain.`,
-        },
-        { status: 400 }
-      );
-    }
+Return the output in a simple JSON file with ‘content’ as the key.
 
-    // 6) Prepare OpenAI prompt
-    const prompt = `
-Humanize the following content. Keep it professional while simplifying it but do NOT oversimplify it. 
-Rewrite it to IELTS band 5 level. Humanize ANY and ALL sentence structures and writing style that AI 
-typically uses. Use a variety of long and short sentences to increase burstiness and avoid robotic flow. 
-Avoid common, overused phrases that AI often relies on. 
-
-Rules:
-- Sometimes circle back or leave thoughts slightly unfinished.
-- Use everyday words at a high school level.
-- Replace complex/academic terms with simpler ones.
-- Forbidden words/phrases: delve, embark, enlightening, esteemed, shed light, craft, realm, game-changer, 
-  unlock, discover, revolutionize, disruptive, utilize, dive deep, tapestry, illuminate, unveil, pivotal, 
-  intricate, elucidate, hence, furthermore, harness, groundbreaking, cutting-edge, remarkable, testament, 
-  landscape, navigate, ever-evolving, profound, arduous, in conclusion, in summary, moreover, it is important 
-  to note, studies have shown, in today’s fast-paced world.
-- Use simple connectors (and, but, so, because).
-- Never use em dashes.
-- Include slight redundancies, slips, or relatable specifics.
-- Keep the formatting exactly as in the original text.
-- The text must not lose complexity.
-- The connectors must be creative, not formulaic.
-- The output must feel like a real person wrote it.
-
-Here’s the content to humanize:
+Here is the content that needs humanization:
 
 ${text}
 `;
 
-    // 7) Call OpenAI
-    const resp = await client.responses.create({
-      model: "gpt-4o-mini",
-      input: prompt,
-      max_output_tokens: 800,
-      temperature: 0.7,
-    });
-
-    // Handle both new + legacy output formats
-    const humanized =
-      (resp as any).output_text ??
-      (Array.isArray((resp as any).output)
-        ? (resp as any).output
-            .map((o: any) =>
-              Array.isArray(o.content)
-                ? o.content.map((c: any) => c.text ?? "").join("")
-                : ""
-            )
-            .join("\n")
-        : "");
-
-    // 8) Deduct words from balance
-    const newBalance = Math.max(balance - wordCount, 0);
-    const { error: updateError } = await supabaseAdmin
-      .from("user_balances")
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq("user_id", userId);
-
-    if (updateError) {
-      console.error("❌ Balance update error:", updateError);
-    }
-
-    // 9) Insert history record
-    const { error: historyError } = await supabaseAdmin
-      .from("humanize_history")
-      .insert({
-        user_id: userId,
-        input_text: text,
-        output_text: humanized,
-        words_used: wordCount,
-      });
-
-    if (historyError) {
-      console.error("❌ History insert error:", historyError);
-    }
-
-    // 10) Return response
-    return NextResponse.json({ humanized, newBalance });
-  } catch (err: any) {
-    console.error("Humanizer API error:", err);
-    return NextResponse.json(
-      { error: err?.message ?? "Unknown server error" },
-      { status: 500 }
-    );
+  // Call Gemini SDK
+  let output: string;
+  try {
+    output = await humanizeWithGemini(prompt);
+  } catch (error) {
+    console.error("Gemini API error:", error);
+    return NextResponse.json({ error: "Failed to humanize text" }, { status: 500 });
   }
+
+  // Deduct words
+  await supabaseAdmin.rpc("deduct_balance", { uid: userId, amount: wordCount });
+
+  // Save history
+  await supabaseAdmin.from("history").insert({
+    user_id: userId,
+    input_text: text,
+    output_text: output,
+    words_used: wordCount,
+  });
+
+  return NextResponse.json({ result: output });
 }

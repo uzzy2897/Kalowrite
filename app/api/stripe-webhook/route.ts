@@ -1,4 +1,3 @@
-// app/api/stripe-webhook/route.ts
 import { headers } from "next/headers";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -8,12 +7,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 export async function POST(req: Request) {
-  const h = headers() as unknown as Headers;
+  const h = await headers(); // ✅ must await
   const sig = h.get("stripe-signature");
-
-  if (!sig) {
-    return new Response("Missing stripe-signature header", { status: 400 });
-  }
+  if (!sig) return new Response("Missing signature", { status: 400 });
 
   const body = await req.text();
 
@@ -24,74 +20,103 @@ export async function POST(req: Request) {
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (err: any) {
-    console.error("❌ Webhook signature verification failed:", err.message);
-    return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+  } catch (err) {
+    console.error("❌ Webhook signature error:", err);
+    return new Response(`Webhook error: ${err}`, { status: 400 });
   }
+
+  console.log("🔔 Stripe event received:", event.type);
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-
     const userId = session.metadata?.userId;
-    const words = session.metadata?.words
-      ? parseInt(session.metadata.words, 10)
-      : 0;
 
-    console.log("🟢 Checkout completed:", {
-      userId,
-      words,
-      sessionId: session.id,
+    console.log("📦 Session object:", session);
+    console.log("👤 User ID from metadata:", userId);
+
+    if (!userId) {
+      console.error("❌ No userId found in session metadata");
+      return new Response("Missing userId in metadata", { status: 400 });
+    }
+
+    // 🔹 Fetch line items (Stripe does not include by default)
+    const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
+      limit: 1,
     });
+    const priceId = lineItems.data[0]?.price?.id;
 
-    if (userId && words > 0) {
-      try {
-        // 1️⃣ Check if this session was already processed
-        const { data: existing } = await supabaseAdmin
-          .from("stripe_events")
-          .select("id")
-          .eq("id", session.id)
-          .single();
+    console.log("🧾 Line Items:", lineItems.data);
 
-        if (existing) {
-          console.warn(`⚠️ Session ${session.id} already processed, skipping`);
-          return new Response("Already processed", { status: 200 });
-        }
+    // -------------------------------
+    // Subscription handling
+    // -------------------------------
+    if (session.mode === "subscription" && priceId) {
+      const plan =
+        priceId === process.env.STRIPE_PRICE_BASIC
+          ? "basic"
+          : priceId === process.env.STRIPE_PRICE_PRO
+          ? "pro"
+          : "ultra";
 
-        // 2️⃣ Insert into stripe_events (to lock this session)
-        const { error: insertError } = await supabaseAdmin
-          .from("stripe_events")
-          .insert([
-            { id: session.id, user_id: userId, words: words },
-          ]);
+      console.log(`📌 Subscription plan detected: ${plan}`);
 
-        if (insertError) {
-          console.error("❌ Error inserting stripe_events:", insertError.message);
-          return new Response("Insert error", { status: 500 });
-        }
-
-        // 3️⃣ Increment balance in Supabase
-        const { data, error } = await supabaseAdmin.rpc("increment_balance", {
-          uid: userId,
-          amount: words,
+      const { error: membershipError } = await supabaseAdmin
+        .from("membership")
+        .upsert({
+          user_id: userId,
+          plan,
+          stripe_subscription_id: session.subscription as string,
+          active: true,
         });
 
-        if (error) {
-          console.error("❌ Supabase RPC error:", error.message);
-          return new Response("Supabase error", { status: 500 });
-        }
-
-        console.log(
-          `✅ Balance incremented for ${userId}: +${words}, new balance: ${data}`
-        );
-      } catch (err: any) {
-        console.error("❌ Error updating Supabase:", err.message);
-        return new Response("Internal error", { status: 500 });
+      if (membershipError) {
+        console.error("❌ Membership insert failed:", membershipError);
       }
-    } else {
-      console.warn("⚠️ Missing userId or words in metadata", {
-        userId,
-        words,
+
+      // Reset balance according to plan
+      const refill =
+        plan === "basic" ? 500 : plan === "pro" ? 1500 : 3000;
+
+      const { error: balanceError } = await supabaseAdmin.rpc("increment_balance", {
+        uid: userId,
+        amount: refill,
       });
+
+      if (balanceError) {
+        console.error("❌ Balance update failed:", balanceError);
+      } else {
+        console.log(`✅ Balance refilled with ${refill} words for user ${userId}`);
+      }
+    }
+
+    // -------------------------------
+    // Top-up handling
+    // -------------------------------
+    if (session.mode === "payment") {
+      const words = parseInt(session.metadata?.words || "0", 10);
+
+      console.log(`📌 Top-up detected: ${words} words for user ${userId}`);
+
+      const { error: topupError } = await supabaseAdmin.from("topups").insert({
+        user_id: userId,
+        stripe_payment_id: session.payment_intent as string,
+        words_added: words,
+      });
+
+      if (topupError) {
+        console.error("❌ Topup insert failed:", topupError);
+      }
+
+      const { error: balanceError } = await supabaseAdmin.rpc("increment_balance", {
+        uid: userId,
+        amount: words,
+      });
+
+      if (balanceError) {
+        console.error("❌ Balance update failed:", balanceError);
+      } else {
+        console.log(`✅ Balance incremented by ${words} words for user ${userId}`);
+      }
     }
   }
 

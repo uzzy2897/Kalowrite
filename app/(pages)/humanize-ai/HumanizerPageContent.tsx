@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import React, {  useLayoutEffect, useRef } from "react";
+
 import {
   Loader2,
   ClipboardCopy,
@@ -16,6 +18,7 @@ import { TypographyH1, TypographyP } from "@/components/Typography";
 import Sidebar from "./Sidebar";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+
 
 type HistoryItem = {
   id: string;
@@ -326,8 +329,7 @@ const fetchBalance = async () => {
 
           {/* Input + Output */}
           <section className="grid lg:grid-cols-2 grid-cols-1 gap-6">
-            {/* Input box */}
-        {/* Input box */}
+      
 {/* Input box */}
 <div className="flex flex-col border rounded-xl bg-card p-6 min-h-[300px]">
   <h3 className="font-semibold mb-2">Input</h3>
