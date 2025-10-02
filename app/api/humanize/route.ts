@@ -1,10 +1,15 @@
+// app/api/humanize/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { humanizeWithGemini } from "@/lib/gemini";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
 
 export async function POST(req: Request) {
-  const { userId } = await auth(); // ✅ Clerk session
+  const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -12,7 +17,7 @@ export async function POST(req: Request) {
   const { text } = await req.json();
   const wordCount = text.trim().split(/\s+/).length;
 
-  // Balance check
+  // Check balance
   const { data: balance } = await supabaseAdmin
     .from("user_balance")
     .select("balance_words")
@@ -23,54 +28,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not enough words" }, { status: 403 });
   }
 
-  // Build humanizer prompt
+  // Prompt for OpenAI
   const prompt = `
-You are the world's best human writer...
+You are the world's best human writer. Follow these strict rules:
 
-Return ONLY valid JSON in the format: 
-{
-  "content": "your rewritten humanized text"
-}
+- Rewrite text into IELTS band 5.5 style sentence structures, but keep vocabulary level at IELTS band 8.
+- Remove all obvious AI-style phrasing. Add unpredictability, slips, and variety.
+- No em dashes allowed. Use only commas, colons, or semicolons if needed.
+- The output must feel naturally written by a human, not a machine.
+- Return only the rewritten content, no explanations.
 
-Here is the content that needs humanization:
+Here is the content to humanize:
 
 ${text}
 `;
 
-  // Call Gemini
   let output: string;
   try {
-    const raw = await humanizeWithGemini(prompt);
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // swap to "gpt-4o" if you want highest quality
+      messages: [
+        { role: "system", content: "You are a humanization engine for AI text." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.9,
+    });
 
-    // Try parsing JSON
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-      output = parsed.content || raw;
-    } catch {
-      // If Gemini returned plain text, fallback
-      output = raw;
-    }
+    output = response.choices[0]?.message?.content?.trim() || "";
   } catch (error) {
-    console.error("Gemini API error:", error);
+    console.error("OpenAI API error:", error);
     return NextResponse.json({ error: "Failed to humanize text" }, { status: 500 });
   }
 
   // Deduct words
-  const { error: deductErr } = await supabaseAdmin.rpc("deduct_balance", { 
-    uid: userId, 
-    amount: wordCount 
-  });
-  if (deductErr) console.error("❌ deduct_balance failed:", deductErr);
+  await supabaseAdmin.rpc("deduct_balance", { uid: userId, amount: wordCount });
 
   // Save history
-  const { error: histErr } = await supabaseAdmin.from("history").insert({
+  await supabaseAdmin.from("history").insert({
     user_id: userId,
     input_text: text,
     output_text: output,
     words_used: wordCount,
   });
-  if (histErr) console.error("❌ history insert failed:", histErr);
 
   return NextResponse.json({ result: output });
 }
