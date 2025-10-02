@@ -382,7 +382,7 @@ const fetchBalance = async () => {
             : `Word count exceeded (max ${balance ?? requestLimit})`}
         </span>
         {currentWordCount >= 50 && (
-          <Link href="/pricing">
+          <Link href="/add-more-words">
             <Button
               size="sm"
               variant="ghost"

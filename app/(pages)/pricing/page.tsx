@@ -47,41 +47,6 @@ export default function PricingPage() {
 
       <PricingTable />
 
-      {/* 🔹 One-Time Stripe Top-Ups */}
-      <motion.section
-        className="flex flex-col items-center text-center gap-6"
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true }}
-        variants={fadeUp}
-      >
-        <motion.div variants={fadeUp} custom={0.2}>
-          <Badge className="mb-2">Need More Credits?</Badge>
-        </motion.div>
-
-        <motion.div variants={fadeUp} custom={0.4}>
-          <TypographyH1>
-            Top-Up Your Balance <br />
-            <span className="text-emerald-500">Pay Once, Use Anytime</span>
-          </TypographyH1>
-        </motion.div>
-
-        <motion.div variants={fadeUp} custom={0.6}>
-          <TypographyP>
-            Don’t want a subscription? Buy extra credits with a simple one-time
-            payment via Stripe Checkout.
-          </TypographyP>
-        </motion.div>
-
-        <motion.div variants={fadeUp} custom={0.8} className="flex gap-4">
-          {/* ✅ Hardcoded Stripe Price IDs */}
-          <BuyCreditsButton 
-            priceId="price_1SDRHaDpLt9MGk2XRVUBDNxF" 
-            label="Buy 100 Credits" 
-          />
-       
-        </motion.div>
-      </motion.section>
     </div>
   );
 }
