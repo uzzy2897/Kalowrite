@@ -48,7 +48,6 @@ export async function POST(req: Request) {
     if (session.mode === "subscription") {
       const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
       const plan = planFromPriceId(items.data[0]?.price?.id);
-
       if (!plan) return new Response("Unknown plan", { status: 400 });
 
       await supabaseAdmin.from("membership").upsert({
@@ -76,7 +75,7 @@ export async function POST(req: Request) {
   }
 
   // -------------------------------
-  // 2. Subscription Updated
+  // 2. Subscription Updated (upgrade/downgrade)
   // -------------------------------
   if (event.type === "customer.subscription.updated") {
     const sub = event.data.object as Stripe.Subscription;
@@ -102,10 +101,24 @@ export async function POST(req: Request) {
       .eq("user_id", userId)
       .single();
 
-    if (existing?.plan !== plan.name) {
-      await resetPlanAndBalance(userId, plan.name, plan.quota);
+    const oldPlan = existing?.plan ?? "free";
+
+    if (oldPlan !== plan.name) {
+      if (
+        (oldPlan === "basic" && plan.name === "pro") ||
+        (oldPlan === "basic" && plan.name === "ultra") ||
+        (oldPlan === "pro" && plan.name === "ultra")
+      ) {
+        // ✅ Upgrade → apply immediately
+        await resetPlanAndBalance(userId, plan.name, plan.quota);
+        console.log(`⬆️ Upgrade applied: ${oldPlan} → ${plan.name}`);
+      } else {
+        // 🔽 Downgrade → schedule, don't reset yet
+        console.log(`⏳ Downgrade scheduled: ${oldPlan} → ${plan.name} (applied at cycle end)`);
+      }
     }
 
+    // Always keep membership in sync
     await supabaseAdmin.from("membership").upsert({
       user_id: userId,
       plan: plan.name,
@@ -115,7 +128,7 @@ export async function POST(req: Request) {
   }
 
   // -------------------------------
-  // 3. Monthly Refill
+  // 3. Monthly Refill (on billing cycle)
   // -------------------------------
   if (event.type === "invoice.paid") {
     const invoice = event.data.object as Stripe.Invoice & { subscription?: string };
@@ -138,6 +151,7 @@ export async function POST(req: Request) {
 
       const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
       if (plan) {
+        // ✅ Apply plan quota now (this covers downgrades)
         await resetPlanAndBalance(userId, plan.name, plan.quota);
         await supabaseAdmin.from("membership").upsert({
           user_id: userId,
@@ -145,6 +159,8 @@ export async function POST(req: Request) {
           stripe_subscription_id: sub.id,
           active: sub.status === "active" || sub.status === "trialing",
         });
+
+        console.log(`🗓️ Monthly refill: ${plan.name}, balance reset=${plan.quota} for ${userId}`);
       }
     }
   }

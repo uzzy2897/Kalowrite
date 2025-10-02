@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Loader2 } from "lucide-react";
 
 export default function HomePage() {
   const [input, setInput] = useState("");
@@ -10,27 +15,33 @@ export default function HomePage() {
   const [balance, setBalance] = useState<number | null>(null);
   const [plan, setPlan] = useState<string>("");
 
-  // Fetch user balance + plan from /api/user
-  useEffect(() => {
-    const fetchBalance = async () => {
-      try {
-        const res = await fetch("/api/user");
-        const data = await res.json();
-        if (res.ok) {
-          setBalance(data.balance);
-          setPlan(data.plan);
-        } else {
-          setError(data.error || "Unable to load balance");
-        }
-      } catch (err) {
-        console.error(err);
-        setError("Failed to fetch balance");
+  // Fetch user balance + plan from API
+  const fetchBalance = async () => {
+    try {
+      const res = await fetch("/api/user");
+      const data = await res.json();
+      if (res.ok) {
+        setBalance(data.balance);
+        setPlan(data.plan);
+      } else {
+        setError(data.error || "Unable to load balance");
       }
-    };
+    } catch {
+      setError("Failed to fetch balance");
+    }
+  };
+
+  useEffect(() => {
     fetchBalance();
+
+    // refresh balance after Stripe redirect
+    if (window.location.search.includes("session_id")) {
+      fetchBalance();
+    }
   }, []);
 
   const handleHumanize = async () => {
+    if (!input.trim()) return;
     setLoading(true);
     setError("");
     setOutput("");
@@ -48,16 +59,10 @@ export default function HomePage() {
         setError(data.error || "Something went wrong");
       } else {
         setOutput(data.result);
-
-        // Decrease local balance after request
-        if (balance !== null) {
-          const wordsUsed = input.trim().split(/\s+/).length;
-          setBalance((prev) => (prev !== null ? prev - wordsUsed : null));
-        }
+        await fetchBalance(); // refresh from server after deduction
       }
-    } catch (err) {
-      setError("Request failed. Check console.");
-      console.error(err);
+    } catch {
+      setError("Request failed. Please try again.");
     }
 
     setLoading(false);
@@ -66,75 +71,84 @@ export default function HomePage() {
   const hasBalance = balance !== null && balance > 0;
 
   return (
-    <main className="max-w-5xl mx-auto py-12 px-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+    <main className="max-w-6xl mx-auto py-12 px-4 grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* Left Side */}
       <section>
-        <h1 className="text-3xl font-bold mb-6">🚀 Humanizer AI Test</h1>
+        <h1 className="text-3xl font-bold mb-6">🚀 Humanizer AI</h1>
 
-        {/* Show user plan & balance */}
-        <div className="mb-6 flex items-center gap-4">
-          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-md text-sm">
-            Plan: {plan || "free"}
-          </span>
-          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md text-sm">
+        {/* User status */}
+        <div className="flex items-center gap-3 mb-6">
+          <Badge variant="secondary">Plan: {plan || "free"}</Badge>
+          <Badge variant="outline">
             Balance: {balance !== null ? balance : "…"} words
-          </span>
+          </Badge>
         </div>
 
-        {/* Input section */}
-        <div className="mb-4">
-          <label className="block font-medium mb-2">📝 Your Content</label>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Paste AI text here..."
-            className="w-full p-4 border rounded-md h-40 text-sm"
-          />
+        {/* Input */}
+        <Card>
+          <CardHeader>
+            <CardTitle>📝 Your Content</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Paste your AI text here..."
+              className="min-h-[160px] resize-none"
+            />
+          </CardContent>
+        </Card>
+
+        {/* Actions */}
+        <div className="mt-6">
+          {hasBalance ? (
+            <Button
+              onClick={handleHumanize}
+              disabled={loading || !input.trim()}
+              className="w-full md:w-auto"
+            >
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {loading ? "Humanizing..." : "Humanize"}
+            </Button>
+          ) : (
+            <Card className="p-4 border-destructive/50 bg-destructive/10 text-center">
+              <p className="text-sm font-medium mb-3">
+                ⚠️ You’ve run out of words.
+              </p>
+              <div className="flex flex-col md:flex-row gap-3 justify-center">
+                <Button asChild variant="secondary">
+                  <a href="/pricing">Upgrade Plan</a>
+                </Button>
+                <Button asChild>
+                  <a href="/topup">Buy Top-up</a>
+                </Button>
+              </div>
+            </Card>
+          )}
         </div>
 
-        {/* Humanize button or Upgrade/TOP-UP */}
-        {hasBalance ? (
-          <button
-            onClick={handleHumanize}
-            disabled={loading || !input.trim()}
-            className="mt-2 px-6 py-2 bg-emerald-600 text-white rounded-md disabled:opacity-50"
-          >
-            {loading ? "Humanizing..." : "Humanize"}
-          </button>
-        ) : (
-          <div className="mt-4 p-4 border border-red-300 bg-red-50 rounded-md text-center">
-            <p className="text-red-600 font-medium mb-2">
-              ⚠️ You’ve run out of words.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <a
-                href="/pricing"
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md"
-              >
-                Upgrade Plan
-              </a>
-              <a
-                href="/topup"
-                className="px-4 py-2 bg-emerald-600 text-white rounded-md"
-              >
-                Buy Top-up
-              </a>
-            </div>
-          </div>
+        {/* Error message */}
+        {error && (
+          <p className="mt-4 text-destructive text-sm font-medium">{error}</p>
         )}
-
-        {error && <p className="mt-4 text-red-600">{error}</p>}
       </section>
 
-      {/* Output section - always visible */}
+      {/* Right Side */}
       <section>
-        <h2 className="text-lg font-semibold mb-2">✅ Output</h2>
-        <div className="border p-4 rounded-md bg-card whitespace-pre-wrap min-h-[10rem]">
-          {loading
-            ? "⏳ Processing..."
-            : output
-            ? output
-            : "Output will appear here after processing."}
-        </div>
+        <Card className="h-full">
+          <CardHeader>
+            <CardTitle>✅ Output</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="min-h-[200px] whitespace-pre-wrap text-sm leading-relaxed">
+              {loading
+                ? "⏳ Processing..."
+                : output
+                ? output
+                : "Output will appear here after processing."}
+            </div>
+          </CardContent>
+        </Card>
       </section>
     </main>
   );
