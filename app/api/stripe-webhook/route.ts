@@ -39,12 +39,11 @@ export async function POST(req: Request) {
       return new Response("Missing userId in metadata", { status: 400 });
     }
 
-    // 🔹 Fetch line items (Stripe does not include by default)
+    // 🔹 Fetch line items
     const lineItems = await stripe.checkout.sessions.listLineItems(session.id, {
       limit: 1,
     });
     const priceId = lineItems.data[0]?.price?.id;
-
     console.log("🧾 Line Items:", lineItems.data);
 
     // -------------------------------
@@ -60,6 +59,7 @@ export async function POST(req: Request) {
 
       console.log(`📌 Subscription plan detected: ${plan}`);
 
+      // 1. Update membership table
       const { error: membershipError } = await supabaseAdmin
         .from("membership")
         .upsert({
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         console.error("❌ Membership insert failed:", membershipError);
       }
 
-      // Reset balance according to plan
+      // 2. Reset balance according to plan
       const refill =
         plan === "basic" ? 500 : plan === "pro" ? 1500 : 3000;
 
@@ -87,6 +87,20 @@ export async function POST(req: Request) {
       } else {
         console.log(`✅ Balance refilled with ${refill} words for user ${userId}`);
       }
+
+      // 3. Sync plan in user_balance table
+      const { error: ubError } = await supabaseAdmin
+        .from("user_balance")
+        .upsert({
+          user_id: userId,
+          plan,
+        });
+
+      if (ubError) {
+        console.error("❌ Failed to update plan in user_balance:", ubError);
+      } else {
+        console.log(`✅ user_balance updated with plan=${plan} for ${userId}`);
+      }
     }
 
     // -------------------------------
@@ -94,7 +108,6 @@ export async function POST(req: Request) {
     // -------------------------------
     if (session.mode === "payment") {
       const words = parseInt(session.metadata?.words || "0", 10);
-
       console.log(`📌 Top-up detected: ${words} words for user ${userId}`);
 
       const { error: topupError } = await supabaseAdmin.from("topups").insert({
