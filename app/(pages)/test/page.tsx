@@ -15,7 +15,25 @@ export default function HomePage() {
   const [balance, setBalance] = useState<number | null>(null);
   const [plan, setPlan] = useState<string>("");
 
-  // Fetch user balance + plan from API
+  // Plan quotas (match your backend logic)
+  const planQuotas: Record<string, number> = {
+    free: 500,
+    basic: 500,
+    pro: 1500,
+    ultra: 3000,
+  };
+
+  // Compute percentage + color
+  const quota = planQuotas[plan] ?? 500;
+  const percent = balance !== null ? Math.min((balance / quota) * 100, 100) : 0;
+  const color =
+    percent > 70
+      ? "bg-emerald-500"
+      : percent > 30
+      ? "bg-yellow-500"
+      : "bg-red-500";
+
+  // 🔄 Fetch user balance + plan
   const fetchBalance = async () => {
     try {
       const res = await fetch("/api/user");
@@ -33,8 +51,6 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchBalance();
-
-    // refresh balance after Stripe redirect
     if (window.location.search.includes("session_id")) {
       fetchBalance();
     }
@@ -59,7 +75,7 @@ export default function HomePage() {
         setError(data.error || "Something went wrong");
       } else {
         setOutput(data.result);
-        await fetchBalance(); // refresh from server after deduction
+        await fetchBalance();
       }
     } catch {
       setError("Request failed. Please try again.");
@@ -72,16 +88,26 @@ export default function HomePage() {
 
   return (
     <main className="max-w-6xl mx-auto py-12 px-4 grid grid-cols-1 md:grid-cols-2 gap-8">
-      {/* Left Side */}
+      {/* Left Section */}
       <section>
         <h1 className="text-3xl font-bold mb-6">🚀 Humanizer AI</h1>
 
-        {/* User status */}
-        <div className="flex items-center gap-3 mb-6">
-          <Badge variant="secondary">Plan: {plan || "free"}</Badge>
-          <Badge variant="outline">
-            Balance: {balance !== null ? balance : "…"} words
-          </Badge>
+        {/* Plan + Balance */}
+        <div className="mb-6 space-y-3">
+          <div className="flex items-center gap-3">
+            <Badge variant="secondary">Plan: {plan || "free"}</Badge>
+            <Badge variant="outline">
+              {balance !== null ? `${balance}/${quota}` : "…"} words
+            </Badge>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="h-2 bg-muted rounded-full w-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-300 ${color}`}
+              style={{ width: `${percent}%` }}
+            />
+          </div>
         </div>
 
         {/* Input */}
@@ -127,13 +153,12 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Error message */}
         {error && (
           <p className="mt-4 text-destructive text-sm font-medium">{error}</p>
         )}
       </section>
 
-      {/* Right Side */}
+      {/* Right Section */}
       <section>
         <Card className="h-full">
           <CardHeader>
