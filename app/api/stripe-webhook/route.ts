@@ -8,6 +8,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-08-27.basil",
 });
 
+// ✅ helper: reset plan and balance
 async function resetPlanAndBalance(userId: string, planName: string, quota: number) {
   const { error } = await supabaseAdmin
     .from("user_balance")
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
       await supabaseAdmin.from("membership").upsert({
         user_id: userId,
         plan: plan.name,
+        scheduled_plan: null,
         stripe_subscription_id: session.subscription as string,
         active: true,
       });
@@ -108,26 +110,41 @@ export async function POST(req: Request) {
     const oldPlan = existing?.plan ?? "free";
 
     if (oldPlan !== plan.name) {
+      // ✅ Upgrades → apply immediately
       if (
         (oldPlan === "basic" && ["pro", "ultra"].includes(plan.name)) ||
         (oldPlan === "pro" && plan.name === "ultra")
       ) {
-        // ✅ Upgrade → apply immediately
         await resetPlanAndBalance(userId, plan.name, plan.quota);
+        await supabaseAdmin.from("membership").upsert({
+          user_id: userId,
+          plan: plan.name,
+          scheduled_plan: null,
+          stripe_subscription_id: sub.id,
+          active: sub.status === "active" || sub.status === "trialing",
+        });
         console.log(`⬆️ Upgrade applied: ${oldPlan} → ${plan.name}`);
       } else {
-        // 🔽 Downgrade → schedule, don't reset yet
-        console.log(`⏳ Downgrade scheduled: ${oldPlan} → ${plan.name} (applied at cycle end)`);
+        // 🔽 Downgrades → schedule only
+        await supabaseAdmin.from("membership").upsert({
+          user_id: userId,
+          plan: oldPlan, // keep old plan active until cycle ends
+          scheduled_plan: plan.name, // schedule downgrade
+          stripe_subscription_id: sub.id,
+          active: sub.status === "active" || sub.status === "trialing",
+        });
+        console.log(`⏳ Downgrade scheduled: ${oldPlan} → ${plan.name}`);
       }
+    } else {
+      // If same plan, just sync membership
+      await supabaseAdmin.from("membership").upsert({
+        user_id: userId,
+        plan: plan.name,
+        scheduled_plan: null,
+        stripe_subscription_id: sub.id,
+        active: sub.status === "active" || sub.status === "trialing",
+      });
     }
-
-    // Always keep membership in sync
-    await supabaseAdmin.from("membership").upsert({
-      user_id: userId,
-      plan: plan.name,
-      stripe_subscription_id: sub.id,
-      active: sub.status === "active" || sub.status === "trialing",
-    });
   }
 
   // -------------------------------
@@ -154,15 +171,29 @@ export async function POST(req: Request) {
 
       const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
       if (plan) {
-        await resetPlanAndBalance(userId, plan.name, plan.quota);
+        // Check if a downgrade was scheduled
+        const { data: membership } = await supabaseAdmin
+          .from("membership")
+          .select("scheduled_plan")
+          .eq("user_id", userId)
+          .single();
+
+        const finalPlan = membership?.scheduled_plan || plan.name;
+
+        const finalPlanObj = planFromPriceId(sub.items?.data?.[0]?.price?.id);
+        const quota = finalPlanObj?.quota ?? 500;
+
+        await resetPlanAndBalance(userId, finalPlan, quota);
+
         await supabaseAdmin.from("membership").upsert({
           user_id: userId,
-          plan: plan.name,
+          plan: finalPlan,
+          scheduled_plan: null, // clear scheduled downgrade
           stripe_subscription_id: sub.id,
           active: sub.status === "active" || sub.status === "trialing",
         });
 
-        console.log(`🗓️ Billing cycle refill: ${plan.name}, reset=${plan.quota} for ${userId}`);
+        console.log(`🗓️ Billing cycle refill: ${finalPlan}, reset=${quota} for ${userId}`);
       }
     }
   }

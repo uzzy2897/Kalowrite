@@ -3,8 +3,15 @@
 import { CircleCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+type UserResponse = {
+  plan?: string;
+};
 
 export default function PricingPage() {
+  const supabase = createClientComponentClient();
+
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [userPlan, setUserPlan] = useState<string>("free");
@@ -15,22 +22,45 @@ export default function PricingPage() {
     const fetchUser = async () => {
       try {
         const res = await fetch("/api/user");
-        const data = await res.json();
-        if (res.ok) {
-          setUserPlan(data.plan || "free");
+        const data: UserResponse = await res.json();
+        if (res.ok && data.plan) {
+          setUserPlan(data.plan);
+        } else {
+          setUserPlan("free");
         }
       } catch (err) {
         console.error("Failed to fetch user plan", err);
+        setUserPlan("free");
       } finally {
         setLoadingUser(false);
       }
     };
-    fetchUser();
-  }, []);
 
+    fetchUser();
+
+    // ✅ Realtime subscription → auto update plan when webhook updates DB
+    const channel = supabase
+      .channel("user-balance-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_balance" },
+        (payload) => {
+          const newPlan = (payload.new as { plan?: string })?.plan;
+          if (newPlan && newPlan !== userPlan) {
+            setUserPlan(newPlan);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, userPlan]);
+
+  // ✅ Stripe checkout
   const handleSubscribe = async (plan: string) => {
     setLoadingPlan(plan);
-
     try {
       const res = await fetch("/api/create-subscription-session", {
         method: "POST",
@@ -48,7 +78,6 @@ export default function PricingPage() {
       console.error(err);
       alert("Failed to start checkout.");
     }
-
     setLoadingPlan(null);
   };
 
@@ -110,7 +139,7 @@ export default function PricingPage() {
         </p>
       </motion.div>
 
-      {/* ✅ Billing toggle */}
+      {/* Billing toggle */}
       <motion.div
         className="flex justify-center mb-12"
         initial={{ opacity: 0 }}
@@ -123,7 +152,7 @@ export default function PricingPage() {
             className={`px-6 py-2 text-sm font-medium transition-colors ${
               billing === "monthly"
                 ? "bg-emerald-600 text-white rounded-full"
-                : " text-muted-foreground"
+                : "text-muted-foreground"
             }`}
           >
             Monthly
@@ -133,7 +162,7 @@ export default function PricingPage() {
             className={`px-6 py-2 text-sm font-medium transition-colors ${
               billing === "yearly"
                 ? "bg-emerald-600 text-white rounded-full"
-                : " text-muted-foreground"
+                : "text-muted-foreground"
             }`}
           >
             Yearly
