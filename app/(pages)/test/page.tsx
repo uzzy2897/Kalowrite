@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation"; // ✅ Correct import for App Router
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 
 export default function HomePage() {
+  const router = useRouter();
+
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,7 +17,6 @@ export default function HomePage() {
   const [balance, setBalance] = useState<number | null>(null);
   const [plan, setPlan] = useState<string>("");
 
-  // Plan quotas (match your backend logic)
   const planQuotas: Record<string, number> = {
     free: 500,
     basic: 500,
@@ -23,7 +24,6 @@ export default function HomePage() {
     ultra: 3000,
   };
 
-  // Compute percentage + color
   const quota = planQuotas[plan] ?? 500;
   const percent = balance !== null ? Math.min((balance / quota) * 100, 100) : 0;
   const color =
@@ -33,7 +33,6 @@ export default function HomePage() {
       ? "bg-yellow-500"
       : "bg-red-500";
 
-  // 🔄 Fetch user balance + plan
   const fetchBalance = async () => {
     try {
       const res = await fetch("/api/user");
@@ -87,18 +86,35 @@ export default function HomePage() {
   const hasBalance = balance !== null && balance > 0;
 
   return (
-    <main className="max-w-6xl mx-auto py-12 px-4 grid grid-cols-1 md:grid-cols-2 gap-8">
-      {/* Left Section */}
-      <section>
-        <h1 className="text-3xl font-bold mb-6">🚀 Humanizer AI</h1>
+    <main className="max-w-5xl mx-auto py-12 px-4 gap-8">
+      <div>
+        <h1 className="text-3xl text-center font-bold mb-2">Humanizer AI</h1>
+        <p className="mb-2 text-center"> Paste your text below and transform it into natural content.</p>
 
         {/* Plan + Balance */}
         <div className="mb-6 space-y-3">
-          <div className="flex items-center gap-3">
-            <Badge variant="secondary">Plan: {plan || "free"}</Badge>
-            <Badge variant="outline">
-              {balance !== null ? `${balance}/${quota}` : "…"} words
-            </Badge>
+          <div className="flex items-center gap-3 justify-between">
+            <div className="flex gap-2 items-center">
+              <Badge variant="secondary">{plan || "free"}</Badge>
+              <Badge variant="outline">
+                {balance !== null ? `${balance}/${quota}` : "…"} words
+              </Badge>
+            </div>
+
+            {/* Actions */}
+            {!hasBalance && (
+              <div className="flex justify-end items-center gap-2">
+                <p className="text-sm font-medium">⚠️ You’ve run out of words.</p>
+                <div className="space-x-2">
+                  <Button asChild variant="secondary">
+                    <a href="/pricing">Upgrade Plan</a>
+                  </Button>
+                  <Button asChild>
+                    <a href="/topup">Buy Top-up</a>
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Progress Bar */}
@@ -109,62 +125,49 @@ export default function HomePage() {
             />
           </div>
         </div>
+      </div>
 
-        {/* Input */}
-        <Card>
-          <CardHeader>
-            <CardTitle>📝 Your Content</CardTitle>
-          </CardHeader>
-          <CardContent>
+      <div className="grid grid-cols-2 gap-2">
+        {/* Left Section */}
+        <section>
+          <div className="bg-card p-4 space-y-4 border rounded-xl relative">
+            <h2>Your Content</h2>
+
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Paste your AI text here..."
-              className="min-h-[160px] resize-none"
+              className="min-h-[200px] resize-none pb-16" // ✅ padding so button doesn't overlap
             />
-          </CardContent>
-        </Card>
 
-        {/* Actions */}
-        <div className="mt-6">
-          {hasBalance ? (
-            <Button
-              onClick={handleHumanize}
-              disabled={loading || !input.trim()}
-              className="w-full md:w-auto"
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {loading ? "Humanizing..." : "Humanize"}
-            </Button>
-          ) : (
-            <Card className="p-4 border-destructive/50 bg-destructive/10 text-center">
-              <p className="text-sm font-medium mb-3">
-                ⚠️ You’ve run out of words.
-              </p>
-              <div className="flex flex-col md:flex-row gap-3 justify-center">
-                <Button asChild variant="secondary">
-                  <a href="/pricing">Upgrade Plan</a>
-                </Button>
-                <Button asChild>
-                  <a href="/topup">Buy Top-up</a>
-                </Button>
-              </div>
-            </Card>
+            {/* ✅ Always visible Humanize button */}
+            <div className="flex  items-end justify-end">
+              <Button
+                onClick={() => {
+                  if (!input.trim()) return;
+                  if (hasBalance) {
+                    handleHumanize();
+                  } else {
+                    router.push("/pricing"); // ✅ Correct App Router redirect
+                  }
+                }}
+                disabled={loading || !input.trim()}
+              >
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {hasBalance ? "Humanize" : "Humanize"}
+              </Button>
+            </div>
+          </div>
+
+          {error && (
+            <p className="mt-4 text-destructive text-sm font-medium">{error}</p>
           )}
-        </div>
+        </section>
 
-        {error && (
-          <p className="mt-4 text-destructive text-sm font-medium">{error}</p>
-        )}
-      </section>
-
-      {/* Right Section */}
-      <section>
-        <Card className="h-full">
-          <CardHeader>
-            <CardTitle>✅ Output</CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* Right Section */}
+        <section>
+          <div className="bg-card p-4 h-full space-y-4 border rounded-xl">
+            <h2>Output</h2>
             <div className="min-h-[200px] whitespace-pre-wrap text-sm leading-relaxed">
               {loading
                 ? "⏳ Processing..."
@@ -172,9 +175,9 @@ export default function HomePage() {
                 ? output
                 : "Output will appear here after processing."}
             </div>
-          </CardContent>
-        </Card>
-      </section>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
