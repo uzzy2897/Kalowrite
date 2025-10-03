@@ -5,8 +5,9 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 
 export default function PricingPage() {
+  const [loadingUser, setLoadingUser] = useState(true);
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
-  const [userPlan, setUserPlan] = useState<string>("");
+  const [userPlan, setUserPlan] = useState<string>("free");
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
 
   // ✅ Fetch current user plan
@@ -20,6 +21,8 @@ export default function PricingPage() {
         }
       } catch (err) {
         console.error("Failed to fetch user plan", err);
+      } finally {
+        setLoadingUser(false);
       }
     };
     fetchUser();
@@ -57,7 +60,7 @@ export default function PricingPage() {
       yearlyPrice: "$59.88/yr",
       features: [
         "5,000 words per month",
-        "Bypass all AI detectors ",
+        "Bypass all AI detectors",
         "Undetectable results",
         "Plagiarism free",
         "Human-like results",
@@ -96,11 +99,9 @@ export default function PricingPage() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
+        transition={{ duration: 0.5 }}
       >
-        <h1 className="text-4xl font-bold mb-4">
-          Simple, Transparent Pricing
-        </h1>
+        <h1 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h1>
         <p className="text-muted-foreground mb-10">
           Get started for free and upgrade anytime. Cancel anytime, no questions asked.
         </p>
@@ -147,9 +148,7 @@ export default function PricingPage() {
         animate="visible"
         variants={{
           hidden: {},
-          visible: {
-            transition: { staggerChildren: 0.15 },
-          },
+          visible: { transition: { staggerChildren: 0.15 } },
         }}
       >
         {plans.map((plan) => {
@@ -196,7 +195,9 @@ export default function PricingPage() {
               </ul>
 
               {/* Button */}
-              {isCurrent ? (
+              {loadingUser ? (
+                <div className="mt-auto h-12 bg-muted animate-pulse rounded-md" />
+              ) : isCurrent ? (
                 <button
                   disabled
                   className="mt-auto px-6 py-3 bg-accent text-muted-foreground rounded-md border cursor-not-allowed"
