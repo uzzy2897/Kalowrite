@@ -16,8 +16,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [balance, setBalance] = useState<number | null>(null);
-  const [plan, setPlan] = useState<string>("");
+  const [plan, setPlan] = useState<string | null>(null); // null until fetched
   const [history, setHistory] = useState<any[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   // Plan quotas
   const planQuotas: Record<string, number> = {
@@ -27,8 +28,8 @@ export default function HomePage() {
     ultra: 3000,
   };
 
-  const quota = planQuotas[plan] ?? 500;
-  const percent = balance !== null ? Math.min((balance / quota) * 100, 100) : 0;
+  const quota = plan ? planQuotas[plan] ?? 500 : 0;
+  const percent = balance !== null && quota > 0 ? Math.min((balance / quota) * 100, 100) : 0;
   const color =
     percent > 70 ? "bg-emerald-500" : percent > 30 ? "bg-yellow-500" : "bg-red-500";
 
@@ -45,6 +46,8 @@ export default function HomePage() {
       }
     } catch {
       setError("Failed to fetch balance");
+    } finally {
+      setInitialLoading(false); // stop skeleton
     }
   };
 
@@ -111,7 +114,6 @@ export default function HomePage() {
           }),
         });
 
-        // Refresh local history list
         fetchHistory();
       }
     } catch {
@@ -122,6 +124,21 @@ export default function HomePage() {
   };
 
   const hasBalance = balance !== null && balance > 0;
+
+  // 🔥 Skeleton Loading State
+  if (initialLoading) {
+    return (
+      <main className="max-w-5xl mx-auto py-12 px-4 space-y-6 animate-pulse">
+        <div className="h-8 w-48 bg-muted rounded mx-auto" />
+        <div className="h-4 w-72 bg-muted rounded mx-auto" />
+        <div className="h-2 w-full bg-muted rounded" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mt-6">
+          <div className="h-40 bg-muted rounded-xl" />
+          <div className="h-40 bg-muted rounded-xl" />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="max-w-5xl mx-auto py-12 px-4 gap-8 space-y-6">
@@ -173,6 +190,7 @@ export default function HomePage() {
           )}
         </div>
 
+        {/* Progress Bar */}
         <div className="h-2 bg-muted rounded-full w-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
@@ -183,7 +201,7 @@ export default function HomePage() {
         </div>
         <p className="text-xs text-muted-foreground text-center">
           {balance !== null
-            ? `Using up to ${quota.toLocaleString()} words of your ${plan} plan (you still have ${balance.toLocaleString()} total including top-ups)`
+            ? `Using up to ${quota.toLocaleString()} words of your ${plan} plan`
             : "Loading..."}
         </p>
       </motion.div>
@@ -225,7 +243,7 @@ export default function HomePage() {
                 disabled={loading || !input.trim()}
               >
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin " />}
-                {hasBalance ? "Humanize" : "Humanize"}
+                Humanize
               </Button>
             </div>
           </div>
