@@ -27,8 +27,8 @@ export async function POST(req: Request) {
         quantity: 1,
       },
     ],
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?topup=success`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?topup=canceled`,
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/humanize?topup=success`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/humanize?topup=canceled`,
     metadata: { userId, words },
   });
 
