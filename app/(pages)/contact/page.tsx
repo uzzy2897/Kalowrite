@@ -1,8 +1,10 @@
 "use client";
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { motion, AnimatePresence } from "framer-motion";
 
 const ContactPage = () => {
   const [loading, setLoading] = useState(false);
@@ -31,7 +33,7 @@ const ContactPage = () => {
 
       if (res.ok) {
         formEl.reset();
-        setShowOverlay(true); // ✅ show success overlay
+        setShowOverlay(true);
       } else {
         setError("❌ Failed to send message. Please try again.");
       }
@@ -43,59 +45,144 @@ const ContactPage = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-4 relative">
-      <h1 className="text-3xl font-bold">Contact Us</h1>
-      <p>
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="max-w-2xl mx-auto p-6 space-y-4 relative"
+    >
+      {/* Header */}
+      <motion.h1
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="text-3xl font-bold"
+      >
+        Contact Us
+      </motion.h1>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+      >
         Contact us using the form below or email us at{" "}
         <span className="font-semibold">support@kalowrite.com</span>
-      </p>
+      </motion.p>
 
-      <form className="space-y-6 mt-6" onSubmit={handleSubmit}>
-        <div className="space-y-2">
-          <label htmlFor="name">Name</label>
-          <Input id="name" name="name" placeholder="Your name" />
-        </div>
+      {/* Form */}
+      <motion.form
+        className="space-y-6 mt-6"
+        onSubmit={handleSubmit}
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: {},
+          visible: { transition: { staggerChildren: 0.15 } },
+        }}
+      >
+        {[
+          { id: "name", label: "Name", type: "text", placeholder: "Your name" },
+          {
+            id: "email",
+            label: "Email",
+            type: "email",
+            placeholder: "you@example.com",
+          },
+        ].map((field) => (
+          <motion.div
+            key={field.id}
+            variants={{
+              hidden: { opacity: 0, y: 10 },
+              visible: { opacity: 1, y: 0 },
+            }}
+            transition={{ duration: 0.3 }}
+            className="space-y-2"
+          >
+            <label htmlFor={field.id}>{field.label}</label>
+            <Input
+              id={field.id}
+              name={field.id}
+              type={field.type}
+              placeholder={field.placeholder}
+            />
+          </motion.div>
+        ))}
 
-        <div className="space-y-2">
-          <label htmlFor="email">Email</label>
-          <Input id="email" name="email" type="email" placeholder="you@example.com" />
-        </div>
-
-        <div className="space-y-2">
+        {/* Message field */}
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 10 },
+            visible: { opacity: 1, y: 0 },
+          }}
+          transition={{ duration: 0.3 }}
+          className="space-y-2"
+        >
           <label htmlFor="message">Message</label>
-          <Textarea id="message" name="message" placeholder="Write your message..." rows={4} />
-        </div>
+          <Textarea
+            id="message"
+            name="message"
+            placeholder="Write your message..."
+            rows={4}
+          />
+        </motion.div>
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Sending..." : "Send Message"}
-        </Button>
-      </form>
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 10 },
+            visible: { opacity: 1, y: 0 },
+          }}
+        >
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Sending..." : "Send Message"}
+          </Button>
+        </motion.div>
+      </motion.form>
 
       {error && (
-        <p className="mt-4 text-center text-sm text-red-500">{error}</p>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-4 text-center text-sm text-red-500"
+        >
+          {error}
+        </motion.p>
       )}
 
       {/* ✅ Overlay */}
-      {showOverlay && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-card p-8 rounded-lg shadow-xl max-w-md text-center">
-            <h2 className="text-2xl font-bold mb-4 text-emerald-500">
-              🎉 Message Sent!
-            </h2>
-            <p className="">
-              Thank you! We’ve received your message and will get back to you
-              within <strong>24-48 hours</strong>.
-            </p>
-            <button
-              onClick={() => setShowOverlay(false)}
-              className="mt-6 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg shadow-md transition"
+      <AnimatePresence>
+        {showOverlay && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="bg-card p-8 rounded-lg shadow-xl max-w-md text-center"
             >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+              <h2 className="text-2xl font-bold mb-4 text-emerald-500">
+                🎉 Message Sent!
+              </h2>
+              <p>
+                Thank you! We’ve received your message and will get back to you
+                within <strong>24-48 hours</strong>.
+              </p>
+              <button
+                onClick={() => setShowOverlay(false)}
+                className="mt-6 px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg shadow-md transition"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 

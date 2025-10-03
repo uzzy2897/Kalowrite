@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     mode: "subscription",
     customer_email: `${userId}@humanizer.ai`, // 🔑 replace with real email from Clerk if possible
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?success=true`,
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/humanize?success=true`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
     metadata: { userId, plan, billing },
   });

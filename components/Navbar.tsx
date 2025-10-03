@@ -2,7 +2,7 @@
 
 import { UserButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import { useUser } from "@clerk/nextjs";
-import { LogIn, Menu, X } from "lucide-react";
+import { LogIn, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
@@ -20,8 +20,6 @@ export default function Navbar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
-  if (!isLoaded) return null;
-
   if (pathname === "/humanize-ai") return null;
 
   const handleTryForFree = () => {
@@ -31,6 +29,10 @@ export default function Navbar() {
       router.push("/auth/sign-in?redirect_url=/humanize-ai");
     }
   };
+
+  if (!isLoaded) {
+    return <NavbarSkeleton />;
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b bg-stone-950">
@@ -57,7 +59,6 @@ export default function Navbar() {
           ))}
 
           <SignedOut>
-       
             <Link
               href={"/auth/sign-in"}
               className="border bg-primary hidden lg:flex text-neutral-950 px-4 py-2 text-sm font-semibold rounded-md items-center hover:bg-primary/70 transition ease-in"
@@ -69,30 +70,32 @@ export default function Navbar() {
           <SignedIn>
             <Link
               href={"/humanize"}
-              className="border bg-accent px-4 text-xs py-2 **:text-center flex justify-center font-semibold rounded-md"
+              className="border bg-accent px-4 text-xs py-2 flex justify-center font-semibold rounded-md"
             >
               ✨ Start Humanizing
             </Link>
-          
+
             <UserButton />
           </SignedIn>
         </div>
 
         {/* Mobile Menu Button */}
         <div className="md:hidden flex items-center">
-        <UserButton />
-     
+          <UserButton />
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="p-2 rounded-md hover:bg-neutral-800 transition"
           >
-            {isOpen ? <X className="h-6 w-6" /> : <img src="https://kolowrite.vercel.app/ri_menu-2-fill.svg" className="h-6 w-6" />}
+            {isOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <img
+                src="https://kolowrite.vercel.app/ri_menu-2-fill.svg"
+                className="h-6 w-6"
+              />
+            )}
           </button>
-      
-         
-       
         </div>
-      
       </nav>
 
       {/* Mobile Menu */}
@@ -109,39 +112,52 @@ export default function Navbar() {
             </Link>
           ))}
 
-          <SignedOut >
-            <div className="flex w-full gap-2">
-   
+          <SignedOut>
             <Link
               href={"/auth/sign-in"}
-              className="border bg-primary text-neutral-950 w-full flex  justify-center px-4 py-2 text-sm font-semibold rounded-md items-center hover:bg-primary/70 transition ease-in"
+              className="border bg-primary text-neutral-950 w-full flex justify-center px-4 py-2 text-sm font-semibold rounded-md items-center hover:bg-primary/70 transition ease-in"
               onClick={() => setIsOpen(false)}
             >
               Login <LogIn className="h-4 ml-1" />
-
             </Link>
-
-            </div>
-         
           </SignedOut>
 
           <SignedIn>
-            <div className="flex gap-2 w-full">
             <Link
               href={"/humanize"}
-              className="border bg-accent px-4 w-full text-sm py-2 **:text-center flex justify-center font-semibold rounded-md"
+              className="border bg-accent px-4 w-full text-sm py-2 flex justify-center font-semibold rounded-md"
             >
               ✨ Start Humanizing
             </Link>
-           
-         
-
-            </div>
-           
-        
           </SignedIn>
         </div>
       )}
+    </header>
+  );
+}
+
+function NavbarSkeleton() {
+  return (
+    <header className="sticky top-0 z-50 border-b bg-stone-950">
+      <nav className="flex items-center max-w-7xl mx-auto justify-between px-6 py-4 animate-pulse">
+        {/* Logo placeholder */}
+        <div className="h-6 w-28 bg-gray-700 rounded-md" />
+
+        {/* Desktop links */}
+        <div className="hidden md:flex gap-4 items-center">
+          <div className="h-4 w-16 bg-gray-700 rounded-md" />
+          <div className="h-4 w-16 bg-gray-700 rounded-md" />
+          <div className="h-4 w-16 bg-gray-700 rounded-md" />
+          <div className="h-4 w-16 bg-gray-700 rounded-md" />
+          <div className="h-8 w-20 bg-gray-700 rounded-md" />
+        </div>
+
+        {/* Mobile button */}
+        <div className="md:hidden flex items-center gap-3">
+          <div className="h-8 w-8 rounded-full bg-gray-700" />
+          <div className="h-6 w-6 bg-gray-700 rounded-md" />
+        </div>
+      </nav>
     </header>
   );
 }

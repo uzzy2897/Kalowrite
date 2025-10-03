@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; 
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2 } from "lucide-react";
+import { HistoryIcon, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function HomePage() {
   const router = useRouter();
@@ -124,74 +125,92 @@ export default function HomePage() {
 
   return (
     <main className="max-w-5xl mx-auto py-12 px-4 gap-8 space-y-6">
-      <div>
-        <h1 className="text-3xl text-center font-bold mb-2">Humanizer AI</h1>
-        <p className=" text-center mb-6">
-          Paste your text below and transform it into natural content.
-        </p>
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="text-center"
+      >
+        <h1 className="text-3xl font-bold mb-2">Humanizer AI</h1>
+        <p className="mb-6">Paste your text below and transform it into natural content.</p>
+      </motion.div>
 
-   
       {/* Progress + Balance */}
-<div className="mb-6 space-y-3">
-  <div className="flex items-center gap-3 flex-col lg:flex-row my-4 justify-between">
-    <div className="flex gap-2 items-center">
-      <Badge variant="secondary">{plan || "free"}</Badge>
-      <Badge variant="outline">
-        {balance !== null ? `${balance.toLocaleString()} words available` : "…"}
-      </Badge>
-    </div>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="mb-6 space-y-3"
+      >
+        <div className="flex items-center gap-3 flex-col lg:flex-row my-4 justify-between">
+          <div className="flex gap-2 items-center">
+            <Badge variant="secondary">{plan || "free"}</Badge>
+            <Badge variant="outline">
+              {balance !== null ? `${balance.toLocaleString()} words available` : "…"}
+            </Badge>
+          </div>
 
-    {/* Actions */}
-    {!hasBalance && (
-      <div className="flex justify-end flex-col lg:flex-row my-4 lg:my-0 items-center gap-2">
-        <p className="text-sm text-destructive px-3 font-medium">
-          You’ve run out of words.
-        </p>
-        <div className="space-x-2">
-          <Button asChild className="bg-emerald-600 cursor-pointer text-white">
-            <a href="/pricing">Upgrade Plan</a>
-          </Button>
-          <span>or</span>
-          <Button className="font-bold" asChild>
-            <a href="/topup">Buy Top-up</a>
-          </Button>
+          {!hasBalance && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex justify-end flex-col lg:flex-row my-4 lg:my-0 items-center gap-2"
+            >
+              <p className="text-sm text-destructive px-3 font-medium">
+                You’ve run out of words.
+              </p>
+              <div className="space-x-2">
+                <Button asChild className="bg-emerald-600 text-white">
+                  <a href="/pricing">Upgrade Plan</a>
+                </Button>
+                <span>or</span>
+                <Button asChild>
+                  <a href="/topup">Buy Top-up</a>
+                </Button>
+              </div>
+            </motion.div>
+          )}
         </div>
-      </div>
-    )}
-  </div>
 
-  {/* ✅ Progress Bar shows quota usage only */}
-  <div className="h-2 bg-muted rounded-full w-full overflow-hidden">
-    <div
-      className={`h-full transition-all duration-300 ${color}`}
-      style={{ width: `${percent}%` }}
-    />
-  </div>
+        <div className="h-2 bg-muted rounded-full w-full overflow-hidden">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${percent}%` }}
+            transition={{ duration: 0.6 }}
+            className={`h-full ${color}`}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground text-center">
+          {balance !== null
+            ? `Using up to ${quota.toLocaleString()} words of your ${plan} plan (you still have ${balance.toLocaleString()} total including top-ups)`
+            : "Loading..."}
+        </p>
+      </motion.div>
 
-  {/* Label under bar */}
-  <p className="text-xs text-muted-foreground text-center">
-    {balance !== null
-      ? `Using up to ${quota.toLocaleString()} words of your ${plan} plan (you still have ${balance.toLocaleString()} total including top-ups)`
-      : "Loading..."}
-  </p>
-</div>
-
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {/* Left Section */}
-        <section>
+      {/* Input + Output */}
+      <motion.div
+        className="grid grid-cols-1 lg:grid-cols-2 gap-2"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: {},
+          visible: { transition: { staggerChildren: 0.15 } },
+        }}
+      >
+        {/* Input */}
+        <motion.section
+          variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+          whileHover={{ scale: 1.01 }}
+        >
           <div className="bg-card p-4 space-y-4 border rounded-xl relative">
             <h2>Your Content</h2>
-
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Paste your AI text here..."
               className="min-h-[200px] resize-none pb-16"
             />
-
-            {/* ✅ Humanize button */}
             <div className="flex items-end justify-end">
               <Button
                 className="w-full lg:w-fit"
@@ -210,14 +229,16 @@ export default function HomePage() {
               </Button>
             </div>
           </div>
-
           {error && (
             <p className="mt-4 text-destructive text-sm font-medium">{error}</p>
           )}
-        </section>
+        </motion.section>
 
-        {/* Right Section */}
-        <section>
+        {/* Output */}
+        <motion.section
+          variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
+          whileHover={{ scale: 1.01 }}
+        >
           <div className="bg-card p-4 h-full space-y-4 border rounded-xl">
             <h2>Output</h2>
             <div className="min-h-[200px] whitespace-pre-wrap text-sm leading-relaxed">
@@ -228,14 +249,20 @@ export default function HomePage() {
                 : "Output will appear here after processing."}
             </div>
           </div>
-        </section>
-      </div>
+        </motion.section>
+      </motion.div>
 
-      {/* ✅ History Section */}
-      <section>
-        <div className="bg-card border p-4 rounded-xl">
+      {/* History */}
+      <motion.section
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.4 }}
+      >
+        <div className="py-4 px-1 border-t">
           <div className="flex justify-between pb-4 border-b mb-4">
-            <h1 className="text-2xl">History</h1>
+            <h1 className="text-xl flex gap-2 items-center">
+              <HistoryIcon className="h-5 text-muted-foreground" /> History
+            </h1>
             <button
               onClick={clearHistory}
               className="text-destructive hover:underline cursor-pointer"
@@ -244,29 +271,38 @@ export default function HomePage() {
             </button>
           </div>
 
-          {history.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No history yet.</p>
-          ) : (
-            <ul className="space-y-3 max-h-64 overflow-auto">
-              {history.map((item) => (
-                <li key={item.id} className="p-3 border rounded-md bg-muted">
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(item.created_at).toLocaleString()}
-                  </p>
-                  <p className="font-medium truncate">
-                    <span className="text-foreground/70">Input:</span>{" "}
-                    {item.input_text}
-                  </p>
-                  <p className="text-sm text-foreground/80 truncate">
-                    <span className="text-foreground/70">Output:</span>{" "}
-                    {item.output_text}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
+          <AnimatePresence>
+            {history.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No history yet.</p>
+            ) : (
+              <ul className="space-y-3 max-h-64 overflow-auto">
+                {history.map((item) => (
+                  <motion.li
+                    key={item.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="p-3 border rounded-md bg-muted"
+                  >
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(item.created_at).toLocaleString()}
+                    </p>
+                    <p className="font-medium truncate">
+                      <span className="text-foreground/70">Input:</span>{" "}
+                      {item.input_text}
+                    </p>
+                    <p className="text-sm text-foreground/80 truncate">
+                      <span className="text-foreground/70">Output:</span>{" "}
+                      {item.output_text}
+                    </p>
+                  </motion.li>
+                ))}
+              </ul>
+            )}
+          </AnimatePresence>
         </div>
-      </section>
+      </motion.section>
     </main>
   );
 }

@@ -2,6 +2,7 @@
 
 import { CircleCheck } from "lucide-react";
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 
 export default function PricingPage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
@@ -91,23 +92,36 @@ export default function PricingPage() {
 
   return (
     <main className="max-w-7xl mx-auto py-16 px-6 text-center">
-      <h1 className="text-4xl font-bold mb-4">
-        Simple, Transparent Pricing
-      </h1>
-      
-      <p className="text-muted-foreground mb-10">
-        Get started for free and upgrade anytime. Cancel anytime, no questions asked.
-      </p>
-      <p className=" text-sm text-muted-foreground mb-3">Switch to yearly and save 50%</p>
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      >
+        <h1 className="text-4xl font-bold mb-4">
+          Simple, Transparent Pricing
+        </h1>
+        <p className="text-muted-foreground mb-10">
+          Get started for free and upgrade anytime. Cancel anytime, no questions asked.
+        </p>
+        <p className="text-sm text-muted-foreground mb-3">
+          Switch to yearly and save 50%
+        </p>
+      </motion.div>
 
       {/* ✅ Billing toggle */}
-      <div className="flex justify-center mb-12">
-        <div className="inline-flex items-center border   rounded-full bg-accent overflow-hidden">
+      <motion.div
+        className="flex justify-center mb-12"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2, duration: 0.5 }}
+      >
+        <div className="inline-flex items-center border rounded-full bg-accent overflow-hidden">
           <button
             onClick={() => setBilling("monthly")}
-            className={`px-6 py-2 text-sm font-medium ${
+            className={`px-6 py-2 text-sm font-medium transition-colors ${
               billing === "monthly"
-                ? "bg-emerald-600 text-white shadow-lg rounded-full"
+                ? "bg-emerald-600 text-white rounded-full"
                 : " text-muted-foreground"
             }`}
           >
@@ -115,28 +129,44 @@ export default function PricingPage() {
           </button>
           <button
             onClick={() => setBilling("yearly")}
-            className={`px-6 py-2 text-sm font-medium ${
+            className={`px-6 py-2 text-sm font-medium transition-colors ${
               billing === "yearly"
                 ? "bg-emerald-600 text-white rounded-full"
                 : " text-muted-foreground"
             }`}
           >
-            Yearly 
+            Yearly
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Pricing Cards */}
-      <div className="grid gap-8 md:grid-cols-3">
+      <motion.div
+        className="grid gap-8 md:grid-cols-3"
+        initial="hidden"
+        animate="visible"
+        variants={{
+          hidden: {},
+          visible: {
+            transition: { staggerChildren: 0.15 },
+          },
+        }}
+      >
         {plans.map((plan) => {
           const isCurrent = userPlan === plan.slug;
           const priceText =
             billing === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
 
           return (
-            <div
+            <motion.div
               key={plan.slug}
-              className={`border rounded-2xl p-8 shadow-md bg-card flex flex-col relative ${
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              whileHover={{ y: -6, boxShadow: "0 8px 20px rgba(0,0,0,0.1)" }}
+              className={`border rounded-2xl p-8 bg-card flex flex-col relative ${
                 plan.slug === "pro" ? "border-emerald-500" : "border-muted"
               }`}
             >
@@ -171,13 +201,13 @@ export default function PricingPage() {
                   disabled
                   className="mt-auto px-6 py-3 bg-accent text-muted-foreground rounded-md border cursor-not-allowed"
                 >
-                Current Plan
+                  Current Plan
                 </button>
               ) : (
                 <button
                   onClick={() => handleSubscribe(plan.slug)}
                   disabled={loadingPlan === plan.slug}
-                  className="mt-auto px-6 py-3 bg-primary text-black rounded-md hover:bg-accent hover:text-white hover:shadow disabled:opacity-50"
+                  className="mt-auto px-6 py-3 bg-primary text-black rounded-md hover:bg-emerald-600 hover:text-white transition-colors disabled:opacity-50"
                 >
                   {loadingPlan === plan.slug
                     ? "Redirecting..."
@@ -186,10 +216,10 @@ export default function PricingPage() {
                     : `Switch to ${plan.name}`}
                 </button>
               )}
-            </div>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
     </main>
   );
 }
