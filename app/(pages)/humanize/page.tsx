@@ -160,7 +160,7 @@ export default function Humanizepagee() {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-        <span className="ml-2 text-muted-foreground">Loading your session…</span>
+       
       </div>
     );
   }
