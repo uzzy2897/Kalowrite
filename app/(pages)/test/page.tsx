@@ -111,11 +111,11 @@ export default function HomePage() {
     <main className="max-w-5xl mx-auto py-12 px-4 gap-8 space-y-6">
       <div>
         <h1 className="text-3xl text-center font-bold mb-2">Humanizer AI</h1>
-        <p className="mb-2 text-center"> Paste your text below and transform it into natural content.</p>
+        <p className=" text-center mb-6"> Paste your text below and transform it into natural content.</p>
 
         {/* Plan + Balance */}
         <div className="mb-6 space-y-3">
-          <div className="flex items-center gap-3 justify-between">
+          <div className="flex items-center gap-3 flex-col lg:flex-row my-4 justify-between">
             <div className="flex gap-2 items-center">
               <Badge variant="secondary">{plan || "free"}</Badge>
               <Badge variant="outline">
@@ -125,13 +125,14 @@ export default function HomePage() {
 
             {/* Actions */}
             {!hasBalance && (
-              <div className="flex justify-end items-center gap-2">
-                <p className="text-sm font-medium">⚠️ You’ve run out of words.</p>
+              <div className="flex justify-end flex-col lg:flex-row my-4 lg:my-0 items-center gap-2">
+                <p className="text-sm text-destructive px-3 font-medium">You’ve run out of words.</p>
                 <div className="space-x-2">
-                  <Button asChild variant="secondary">
+                  <Button asChild className="bg-emerald-600 cursor-pointer  text-white">
                     <a href="/pricing">Upgrade Plan</a>
                   </Button>
-                  <Button asChild>
+                  <span>or</span>
+                  <Button className="font-bold" asChild>
                     <a href="/topup">Buy Top-up</a>
                   </Button>
                 </div>
@@ -149,7 +150,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
         {/* Left Section */}
         <section>
           <div className="bg-card p-4 space-y-4 border rounded-xl relative">
@@ -165,6 +166,7 @@ export default function HomePage() {
             {/* ✅ Always visible Humanize button */}
             <div className="flex  items-end justify-end">
               <Button
+              className="w-full lg:w-fit"
                 onClick={() => {
                   if (!input.trim()) return;
                   if (hasBalance) {
@@ -175,7 +177,7 @@ export default function HomePage() {
                 }}
                 disabled={loading || !input.trim()}
               >
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin " />}
                 {hasBalance ? "Humanize" : "Humanize"}
               </Button>
             </div>
