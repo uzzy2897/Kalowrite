@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; // ✅ Correct import for App Router
+import { useRouter } from "next/navigation"; 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -16,9 +16,9 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const [balance, setBalance] = useState<number | null>(null);
   const [plan, setPlan] = useState<string>("");
-  const [history, setHistory] = useState<any[]>([]); // 👈 store history
+  const [history, setHistory] = useState<any[]>([]);
 
-
+  // Plan quotas
   const planQuotas: Record<string, number> = {
     free: 500,
     basic: 500,
@@ -29,12 +29,9 @@ export default function HomePage() {
   const quota = planQuotas[plan] ?? 500;
   const percent = balance !== null ? Math.min((balance / quota) * 100, 100) : 0;
   const color =
-    percent > 70
-      ? "bg-emerald-500"
-      : percent > 30
-      ? "bg-yellow-500"
-      : "bg-red-500";
+    percent > 70 ? "bg-emerald-500" : percent > 30 ? "bg-yellow-500" : "bg-red-500";
 
+  // ✅ Fetch balance
   const fetchBalance = async () => {
     try {
       const res = await fetch("/api/user");
@@ -49,7 +46,8 @@ export default function HomePage() {
       setError("Failed to fetch balance");
     }
   };
-  
+
+  // ✅ Fetch history
   const fetchHistory = async () => {
     try {
       const res = await fetch("/api/history");
@@ -62,6 +60,7 @@ export default function HomePage() {
     }
   };
 
+  // ✅ Clear history
   const clearHistory = async () => {
     try {
       await fetch("/api/history", { method: "DELETE" });
@@ -70,13 +69,16 @@ export default function HomePage() {
       console.error("Failed to clear history");
     }
   };
+
   useEffect(() => {
     fetchBalance();
+    fetchHistory();
     if (window.location.search.includes("session_id")) {
       fetchBalance();
     }
   }, []);
 
+  // ✅ Handle humanize
   const handleHumanize = async () => {
     if (!input.trim()) return;
     setLoading(true);
@@ -97,6 +99,19 @@ export default function HomePage() {
       } else {
         setOutput(data.result);
         await fetchBalance();
+
+        // ✅ Insert new history entry
+        await fetch("/api/history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            input_text: input,
+            output_text: data.result,
+          }),
+        });
+
+        // Refresh local history list
+        fetchHistory();
       }
     } catch {
       setError("Request failed. Please try again.");
@@ -111,7 +126,9 @@ export default function HomePage() {
     <main className="max-w-5xl mx-auto py-12 px-4 gap-8 space-y-6">
       <div>
         <h1 className="text-3xl text-center font-bold mb-2">Humanizer AI</h1>
-        <p className=" text-center mb-6"> Paste your text below and transform it into natural content.</p>
+        <p className=" text-center mb-6">
+          Paste your text below and transform it into natural content.
+        </p>
 
         {/* Plan + Balance */}
         <div className="mb-6 space-y-3">
@@ -126,9 +143,11 @@ export default function HomePage() {
             {/* Actions */}
             {!hasBalance && (
               <div className="flex justify-end flex-col lg:flex-row my-4 lg:my-0 items-center gap-2">
-                <p className="text-sm text-destructive px-3 font-medium">You’ve run out of words.</p>
+                <p className="text-sm text-destructive px-3 font-medium">
+                  You’ve run out of words.
+                </p>
                 <div className="space-x-2">
-                  <Button asChild className="bg-emerald-600 cursor-pointer  text-white">
+                  <Button asChild className="bg-emerald-600 cursor-pointer text-white">
                     <a href="/pricing">Upgrade Plan</a>
                   </Button>
                   <span>or</span>
@@ -160,19 +179,19 @@ export default function HomePage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Paste your AI text here..."
-              className="min-h-[200px] resize-none pb-16" // ✅ padding so button doesn't overlap
+              className="min-h-[200px] resize-none pb-16"
             />
 
-            {/* ✅ Always visible Humanize button */}
-            <div className="flex  items-end justify-end">
+            {/* ✅ Humanize button */}
+            <div className="flex items-end justify-end">
               <Button
-              className="w-full lg:w-fit"
+                className="w-full lg:w-fit"
                 onClick={() => {
                   if (!input.trim()) return;
                   if (hasBalance) {
                     handleHumanize();
                   } else {
-                    router.push("/pricing"); // ✅ Correct App Router redirect
+                    router.push("/pricing");
                   }
                 }}
                 disabled={loading || !input.trim()}
@@ -201,9 +220,9 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-        
       </div>
-      {/* History Section */}
+
+      {/* ✅ History Section */}
       <section>
         <div className="bg-card border p-4 rounded-xl">
           <div className="flex justify-between pb-4 border-b mb-4">
@@ -225,9 +244,13 @@ export default function HomePage() {
                   <p className="text-xs text-muted-foreground">
                     {new Date(item.created_at).toLocaleString()}
                   </p>
-                  <p className="font-medium">Input: {item.input_text}</p>
-                  <p className="text-sm text-foreground/80">
-                    Output: {item.output_text}
+                  <p className="font-medium truncate">
+                    <span className="text-foreground/70">Input:</span>{" "}
+                    {item.input_text}
+                  </p>
+                  <p className="text-sm text-foreground/80 truncate">
+                    <span className="text-foreground/70">Output:</span>{" "}
+                    {item.output_text}
                   </p>
                 </li>
               ))}
@@ -235,7 +258,6 @@ export default function HomePage() {
           )}
         </div>
       </section>
-    
     </main>
   );
 }
