@@ -63,11 +63,15 @@ export async function POST(req: Request) {
     if (session.mode === "payment") {
       const words = parseInt(session.metadata?.words || "0", 10);
 
-      await supabaseAdmin.from("topups").insert({
-        user_id: userId,
-        stripe_payment_id: session.payment_intent as string,
-        words_added: words,
-      });
+      // ✅ idempotent insert (avoid duplicates if retried)
+      await supabaseAdmin.from("topups").upsert(
+        {
+          user_id: userId,
+          stripe_payment_id: session.payment_intent as string,
+          words_added: words,
+        },
+        { onConflict: "stripe_payment_id" }
+      );
 
       await supabaseAdmin.rpc("increment_balance", { uid: userId, amount: words });
       console.log(`✅ Top-up: +${words} for ${userId}`);
@@ -105,8 +109,7 @@ export async function POST(req: Request) {
 
     if (oldPlan !== plan.name) {
       if (
-        (oldPlan === "basic" && plan.name === "pro") ||
-        (oldPlan === "basic" && plan.name === "ultra") ||
+        (oldPlan === "basic" && ["pro", "ultra"].includes(plan.name)) ||
         (oldPlan === "pro" && plan.name === "ultra")
       ) {
         // ✅ Upgrade → apply immediately
@@ -128,7 +131,7 @@ export async function POST(req: Request) {
   }
 
   // -------------------------------
-  // 3. Monthly Refill (on billing cycle)
+  // 3. Refill (monthly or yearly billing cycle)
   // -------------------------------
   if (event.type === "invoice.paid") {
     const invoice = event.data.object as Stripe.Invoice & { subscription?: string };
@@ -151,7 +154,6 @@ export async function POST(req: Request) {
 
       const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
       if (plan) {
-        // ✅ Apply plan quota now (this covers downgrades)
         await resetPlanAndBalance(userId, plan.name, plan.quota);
         await supabaseAdmin.from("membership").upsert({
           user_id: userId,
@@ -160,7 +162,7 @@ export async function POST(req: Request) {
           active: sub.status === "active" || sub.status === "trialing",
         });
 
-        console.log(`🗓️ Monthly refill: ${plan.name}, balance reset=${plan.quota} for ${userId}`);
+        console.log(`🗓️ Billing cycle refill: ${plan.name}, reset=${plan.quota} for ${userId}`);
       }
     }
   }

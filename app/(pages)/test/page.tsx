@@ -16,6 +16,8 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const [balance, setBalance] = useState<number | null>(null);
   const [plan, setPlan] = useState<string>("");
+  const [history, setHistory] = useState<any[]>([]); // 👈 store history
+
 
   const planQuotas: Record<string, number> = {
     free: 500,
@@ -47,7 +49,27 @@ export default function HomePage() {
       setError("Failed to fetch balance");
     }
   };
+  
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch("/api/history");
+      const data = await res.json();
+      if (res.ok) {
+        setHistory(data.history || []);
+      }
+    } catch {
+      console.error("Failed to fetch history");
+    }
+  };
 
+  const clearHistory = async () => {
+    try {
+      await fetch("/api/history", { method: "DELETE" });
+      setHistory([]);
+    } catch {
+      console.error("Failed to clear history");
+    }
+  };
   useEffect(() => {
     fetchBalance();
     if (window.location.search.includes("session_id")) {
@@ -86,7 +108,7 @@ export default function HomePage() {
   const hasBalance = balance !== null && balance > 0;
 
   return (
-    <main className="max-w-5xl mx-auto py-12 px-4 gap-8">
+    <main className="max-w-5xl mx-auto py-12 px-4 gap-8 space-y-6">
       <div>
         <h1 className="text-3xl text-center font-bold mb-2">Humanizer AI</h1>
         <p className="mb-2 text-center"> Paste your text below and transform it into natural content.</p>
@@ -177,7 +199,41 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+        
       </div>
+      {/* History Section */}
+      <section>
+        <div className="bg-card border p-4 rounded-xl">
+          <div className="flex justify-between pb-4 border-b mb-4">
+            <h1 className="text-2xl">History</h1>
+            <button
+              onClick={clearHistory}
+              className="text-destructive hover:underline cursor-pointer"
+            >
+              Clear history
+            </button>
+          </div>
+
+          {history.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No history yet.</p>
+          ) : (
+            <ul className="space-y-3 max-h-64 overflow-auto">
+              {history.map((item) => (
+                <li key={item.id} className="p-3 border rounded-md bg-muted">
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(item.created_at).toLocaleString()}
+                  </p>
+                  <p className="font-medium">Input: {item.input_text}</p>
+                  <p className="text-sm text-foreground/80">
+                    Output: {item.output_text}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+    
     </main>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
+import { CircleCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export default function PricingPage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [userPlan, setUserPlan] = useState<string>("");
-  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly"); // ✅ Toggle state
+  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
 
   // ✅ Fetch current user plan
   useEffect(() => {
@@ -30,7 +31,7 @@ export default function PricingPage() {
       const res = await fetch("/api/create-subscription-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billing }), // pass billing mode too
+        body: JSON.stringify({ plan, billing }),
       });
 
       const data = await res.json();
@@ -51,12 +52,11 @@ export default function PricingPage() {
     {
       name: "Basic",
       slug: "basic",
-      monthlyPrice: "$9.99/month",
-      yearlyPrice: "$59.88/year (just $4.99/mo billed annually)",
-      words: "5,000 words per month",
-      perRequest: "500 words per request",
+      monthlyPrice: "$9.99/mo",
+      yearlyPrice: "$59.88/yr",
       features: [
-        "Bypass all AI detectors (incl. Turnitin & GPTZero)",
+        "5,000 words per month",
+        "Bypass all AI detectors ",
         "Undetectable results",
         "Plagiarism free",
         "Human-like results",
@@ -64,51 +64,69 @@ export default function PricingPage() {
       ],
     },
     {
-      name: "Pro (Most Popular)",
+      name: "Pro",
       slug: "pro",
-      monthlyPrice: "$29.99/month",
-      yearlyPrice: "$179.88/year (just $14.99/mo billed annually)",
-      words: "15,000 words per month",
-      perRequest: "1,500 words per request",
-      features: ["All Basic features", "Top up more credits as you go"],
+      monthlyPrice: "$29.99/mo",
+      yearlyPrice: "$179.88/yr",
+      features: [
+        "All Basic features",
+        "Top up credits as you go",
+        "1,500 words per request",
+        "15,000 words per month",
+      ],
     },
     {
       name: "Ultra",
       slug: "ultra",
-      monthlyPrice: "$59.99/month",
-      yearlyPrice: "$359.88/year (just $29.99/mo billed annually)",
-      words: "30,000 words per month",
-      perRequest: "3,000 words per request",
-      features: ["All Basic & Pro features", "Priority Support"],
+      monthlyPrice: "$59.99/mo",
+      yearlyPrice: "$359.88/yr",
+      features: [
+        "All Basic & Pro features",
+        "Priority Support",
+        "3,000 words per request",
+        "30,000 words per month",
+      ],
     },
   ];
 
   return (
-    <main className="max-w-6xl mx-auto py-12 px-6">
-      <h1 className="text-4xl font-bold text-center mb-6">💳 Pricing Plans</h1>
+    <main className="max-w-7xl mx-auto py-16 px-6 text-center">
+      <h1 className="text-4xl font-bold mb-4">
+        Simple, Transparent Pricing
+      </h1>
+      
+      <p className="text-muted-foreground mb-10">
+        Get started for free and upgrade anytime. Cancel anytime, no questions asked.
+      </p>
+      <p className=" text-sm text-muted-foreground mb-3">Switch to yearly and save 50%</p>
 
       {/* ✅ Billing toggle */}
-      <div className="flex justify-center mb-10">
-        <div className="inline-flex items-center border rounded-lg overflow-hidden">
+      <div className="flex justify-center mb-12">
+        <div className="inline-flex items-center border   rounded-full bg-accent overflow-hidden">
           <button
             onClick={() => setBilling("monthly")}
-            className={`px-4 py-2 text-sm font-medium ${
-              billing === "monthly" ? "bg-emerald-600 text-white" : "bg-card text-muted-foreground"
+            className={`px-6 py-2 text-sm font-medium ${
+              billing === "monthly"
+                ? "bg-emerald-600 text-white shadow-lg rounded-full"
+                : " text-muted-foreground"
             }`}
           >
             Monthly
           </button>
           <button
             onClick={() => setBilling("yearly")}
-            className={`px-4 py-2 text-sm font-medium ${
-              billing === "yearly" ? "bg-emerald-600 text-white" : "bg-card text-muted-foreground"
+            className={`px-6 py-2 text-sm font-medium ${
+              billing === "yearly"
+                ? "bg-emerald-600 text-white rounded-full"
+                : " text-muted-foreground"
             }`}
           >
-            Yearly <span className="ml-1 text-xs text-emerald-400">(Save 50%)</span>
+            Yearly 
           </button>
         </div>
       </div>
 
+      {/* Pricing Cards */}
       <div className="grid gap-8 md:grid-cols-3">
         {plans.map((plan) => {
           const isCurrent = userPlan === plan.slug;
@@ -118,38 +136,48 @@ export default function PricingPage() {
           return (
             <div
               key={plan.slug}
-              className="border rounded-xl p-6 shadow-md bg-card flex flex-col relative"
+              className={`border rounded-2xl p-8 shadow-md bg-card flex flex-col relative ${
+                plan.slug === "pro" ? "border-emerald-500" : "border-muted"
+              }`}
             >
-              {plan.slug === "pro" && (
-                <span className="absolute top-0 right-0 bg-emerald-600 text-white text-xs px-2 py-1 rounded-bl-md">
-                  Most Popular
-                </span>
-              )}
+              {/* Plan Name + Tag */}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold">{plan.name}</h2>
+                {plan.slug === "pro" && (
+                  <span className="bg-emerald-600 text-white text-xs px-3 py-1 rounded-full">
+                    Popular
+                  </span>
+                )}
+              </div>
 
-              <h2 className="text-2xl font-semibold mb-2">{plan.name}</h2>
-              <p className="text-lg font-bold mb-2">{priceText}</p>
+              {/* Price */}
+              <p className="text-4xl font-medium text-start mb-6">{priceText}</p>
 
-              <p className="text-sm font-medium mb-1">{plan.words}</p>
-              <p className="text-sm mb-4">{plan.perRequest}</p>
-
-              <ul className="mb-6 space-y-2 text-sm">
+              {/* Features */}
+              <ul className="mb-8 space-y-3 text-left">
                 {plan.features.map((f, i) => (
-                  <li key={i}>✅ {f}</li>
+                  <li
+                    key={i}
+                    className="flex items-center gap-2 text-muted-foreground"
+                  >
+                    <CircleCheck className="h-5 text-emerald-500" /> {f}
+                  </li>
                 ))}
               </ul>
 
+              {/* Button */}
               {isCurrent ? (
                 <button
                   disabled
-                  className="mt-auto px-4 py-2 text-muted-foreground rounded-md cursor-not-allowed"
+                  className="mt-auto px-6 py-3 bg-accent text-muted-foreground rounded-md border cursor-not-allowed"
                 >
-                  ✅ Current Plan
+                Current Plan
                 </button>
               ) : (
                 <button
                   onClick={() => handleSubscribe(plan.slug)}
                   disabled={loadingPlan === plan.slug}
-                  className="mt-auto px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 disabled:opacity-50"
+                  className="mt-auto px-6 py-3 bg-primary text-black rounded-md hover:bg-accent hover:text-white hover:shadow disabled:opacity-50"
                 >
                   {loadingPlan === plan.slug
                     ? "Redirecting..."
