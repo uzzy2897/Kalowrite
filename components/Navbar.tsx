@@ -38,7 +38,7 @@ export default function Navbar() {
         {/* Logo */}
         <Link href={"/"}>
           <img
-            className="h-8"
+            className="h-6"
             src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
             alt="Kalowrite Logo"
           />
@@ -68,30 +68,31 @@ export default function Navbar() {
 
           <SignedIn>
             <Link
-              href={"/humanize-ai"}
-              className="border bg-accent px-4 py-2 text-sm **:text-center flex justify-center font-semibold rounded-full"
+              href={"/humanize"}
+              className="border bg-accent px-4 text-xs py-2 **:text-center flex justify-center font-semibold rounded-md"
             >
               ✨ Start Humanizing
             </Link>
-            <Link
-              href={"/pricing"}
-              className="px-4 py-2 border text-sm font-semibold bg-emerald-500 rounded-full"
-            >
-              Upgrade plan
-            </Link>
+          
             <UserButton />
           </SignedIn>
         </div>
 
         {/* Mobile Menu Button */}
         <div className="md:hidden flex items-center">
+        <UserButton />
+     
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="p-2 rounded-md hover:bg-neutral-800 transition"
           >
             {isOpen ? <X className="h-6 w-6" /> : <img src="https://kolowrite.vercel.app/ri_menu-2-fill.svg" className="h-6 w-6" />}
           </button>
+      
+         
+       
         </div>
+      
       </nav>
 
       {/* Mobile Menu */}
@@ -117,6 +118,7 @@ export default function Navbar() {
               onClick={() => setIsOpen(false)}
             >
               Login <LogIn className="h-4 ml-1" />
+
             </Link>
 
             </div>
@@ -126,19 +128,13 @@ export default function Navbar() {
           <SignedIn>
             <div className="flex gap-2 w-full">
             <Link
-              href={"/humanize-ai"}
-              className="border bg-accent px-4 py-3  w-full text-xs text-center font-semibold rounded-full"
-              onClick={() => setIsOpen(false)}
+              href={"/humanize"}
+              className="border bg-accent px-4 w-full text-sm py-2 **:text-center flex justify-center font-semibold rounded-md"
             >
               ✨ Start Humanizing
             </Link>
-            <Link
-              href={"/pricing"}
-              className="px-4 py-3 border text-xs text-center  w-full font-semibold bg-emerald-500 rounded-full"
-              onClick={() => setIsOpen(false)}
-            >
-              Upgrade plan
-            </Link>
+           
+         
 
             </div>
            

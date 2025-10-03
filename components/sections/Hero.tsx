@@ -78,7 +78,7 @@ const Hero = () => {
                     onClick={() =>
                       sessionStorage.setItem(
                         "afterSignInRedirect",
-                        "/humanize-ai"
+                        "/humanize"
                       )
                     }
                   >
