@@ -14,6 +14,7 @@ export async function POST(req: Request) {
   }
 
   const { text } = await req.json();
+  
   const wordCount = text.trim().split(/\s+/).length;
 
   // Check balance
