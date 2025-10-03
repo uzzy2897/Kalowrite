@@ -130,43 +130,52 @@ export default function HomePage() {
           Paste your text below and transform it into natural content.
         </p>
 
-        {/* Plan + Balance */}
-        <div className="mb-6 space-y-3">
-          <div className="flex items-center gap-3 flex-col lg:flex-row my-4 justify-between">
-            <div className="flex gap-2 items-center">
-              <Badge variant="secondary">{plan || "free"}</Badge>
-              <Badge variant="outline">
-                {balance !== null ? `${balance}/${quota}` : "…"} words
-              </Badge>
-            </div>
+   
+      {/* Progress + Balance */}
+<div className="mb-6 space-y-3">
+  <div className="flex items-center gap-3 flex-col lg:flex-row my-4 justify-between">
+    <div className="flex gap-2 items-center">
+      <Badge variant="secondary">{plan || "free"}</Badge>
+      <Badge variant="outline">
+        {balance !== null ? `${balance.toLocaleString()} words available` : "…"}
+      </Badge>
+    </div>
 
-            {/* Actions */}
-            {!hasBalance && (
-              <div className="flex justify-end flex-col lg:flex-row my-4 lg:my-0 items-center gap-2">
-                <p className="text-sm text-destructive px-3 font-medium">
-                  You’ve run out of words.
-                </p>
-                <div className="space-x-2">
-                  <Button asChild className="bg-emerald-600 cursor-pointer text-white">
-                    <a href="/pricing">Upgrade Plan</a>
-                  </Button>
-                  <span>or</span>
-                  <Button className="font-bold" asChild>
-                    <a href="/topup">Buy Top-up</a>
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Progress Bar */}
-          <div className="h-2 bg-muted rounded-full w-full overflow-hidden">
-            <div
-              className={`h-full transition-all duration-300 ${color}`}
-              style={{ width: `${percent}%` }}
-            />
-          </div>
+    {/* Actions */}
+    {!hasBalance && (
+      <div className="flex justify-end flex-col lg:flex-row my-4 lg:my-0 items-center gap-2">
+        <p className="text-sm text-destructive px-3 font-medium">
+          You’ve run out of words.
+        </p>
+        <div className="space-x-2">
+          <Button asChild className="bg-emerald-600 cursor-pointer text-white">
+            <a href="/pricing">Upgrade Plan</a>
+          </Button>
+          <span>or</span>
+          <Button className="font-bold" asChild>
+            <a href="/topup">Buy Top-up</a>
+          </Button>
         </div>
+      </div>
+    )}
+  </div>
+
+  {/* ✅ Progress Bar shows quota usage only */}
+  <div className="h-2 bg-muted rounded-full w-full overflow-hidden">
+    <div
+      className={`h-full transition-all duration-300 ${color}`}
+      style={{ width: `${percent}%` }}
+    />
+  </div>
+
+  {/* Label under bar */}
+  <p className="text-xs text-muted-foreground text-center">
+    {balance !== null
+      ? `Using up to ${quota.toLocaleString()} words of your ${plan} plan (you still have ${balance.toLocaleString()} total including top-ups)`
+      : "Loading..."}
+  </p>
+</div>
+
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
