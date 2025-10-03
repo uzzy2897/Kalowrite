@@ -14,21 +14,24 @@ export async function POST(req: Request) {
   }
 
   const { text } = await req.json();
-  
   const wordCount = text.trim().split(/\s+/).length;
 
-  // Check balance
-  const { data: balance } = await supabaseAdmin
+  // ✅ Check balance
+  const { data: balance, error: balErr } = await supabaseAdmin
     .from("user_balance")
     .select("balance_words")
     .eq("user_id", userId)
     .single();
 
-  if (!balance || balance.balance_words < wordCount) {
+  if (balErr || !balance) {
+    return NextResponse.json({ error: "Balance check failed" }, { status: 500 });
+  }
+
+  if (balance.balance_words < wordCount) {
     return NextResponse.json({ error: "Not enough words" }, { status: 403 });
   }
 
-  // Prompt for OpenAI
+  // ✅ Prompt for OpenAI
   const prompt = `
 You are the world's best human writer. Follow these strict rules:
 
@@ -64,7 +67,7 @@ ${text}
     return NextResponse.json({ error: "AI returned no content" }, { status: 500 });
   }
 
-  // Deduct words
+  // ✅ Deduct words
   const { error: deductErr } = await supabaseAdmin.rpc("deduct_balance", {
     uid: userId,
     amount: wordCount,
@@ -74,13 +77,18 @@ ${text}
     return NextResponse.json({ error: "Failed to deduct balance" }, { status: 500 });
   }
 
-  // Save history
-  await supabaseAdmin.from("history").insert({
+  // ✅ Save history
+  const { error: historyErr } = await supabaseAdmin.from("history").insert({
     user_id: userId,
     input_text: text,
     output_text: output,
     words_used: wordCount,
   });
+
+  if (historyErr) {
+    console.error("❌ History insert failed:", historyErr);
+    return NextResponse.json({ error: "Failed to save history" }, { status: 500 });
+  }
 
   return NextResponse.json({ result: output });
 }
