@@ -3,15 +3,12 @@
 import { CircleCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 type UserResponse = {
   plan?: string;
 };
 
 export default function PricingPage() {
-  const supabase = createClientComponentClient();
-
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [userPlan, setUserPlan] = useState<string>("free");
@@ -37,28 +34,8 @@ export default function PricingPage() {
     };
 
     fetchUser();
+  }, []);
 
-    // ✅ Realtime subscription → auto update plan when webhook updates DB
-    const channel = supabase
-      .channel("user-balance-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "user_balance" },
-        (payload) => {
-          const newPlan = (payload.new as { plan?: string })?.plan;
-          if (newPlan && newPlan !== userPlan) {
-            setUserPlan(newPlan);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase, userPlan]);
-
-  // ✅ Stripe checkout
   const handleSubscribe = async (plan: string) => {
     setLoadingPlan(plan);
     try {
