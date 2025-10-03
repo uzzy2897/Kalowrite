@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { HistoryIcon, Loader2 } from "lucide-react";
+import { Check, Copy, HistoryIcon, Loader2, RefreshCcw, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
 import { usePathname, useRouter } from "next/navigation";
@@ -23,8 +23,12 @@ export default function Humanizepagee() {
   const [plan, setPlan] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
-  // ✅ Plan quotas
+  // ✅ Modal state
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+
+  // ✅ Plan quotas (per request)
   const planQuotas: Record<string, number> = {
     free: 500,
     basic: 500,
@@ -32,11 +36,17 @@ export default function Humanizepagee() {
     ultra: 3000,
   };
 
-  const quota = plan ? planQuotas[plan] ?? 500 : 0;
+  const quota = plan ? planQuotas[plan] ?? 500 : 500;
   const percent =
     balance !== null && quota > 0 ? Math.min((balance / quota) * 100, 100) : 0;
   const color =
     percent > 70 ? "bg-emerald-500" : percent > 30 ? "bg-yellow-500" : "bg-red-500";
+
+  // ✅ Derived input word count
+  const words = input.trim().split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+  const tooShort = wordCount > 0 && wordCount < 50;
+  const exceeded = wordCount > quota;
 
   // ✅ Fetch balance
   const fetchBalance = async () => {
@@ -106,7 +116,7 @@ export default function Humanizepagee() {
     };
   }, [isLoaded, isSignedIn]);
 
-  // ✅ Redirect (useEffect, not render)
+  // ✅ Redirect if not signed in
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
       router.replace(`/auth/sign-in?redirect_url=${pathname}`);
@@ -116,6 +126,8 @@ export default function Humanizepagee() {
   // ✅ Handle humanize
   const handleHumanize = async () => {
     if (!input.trim()) return;
+    if (tooShort || exceeded) return;
+
     setLoading(true);
     setError("");
     setOutput("");
@@ -134,16 +146,6 @@ export default function Humanizepagee() {
       } else {
         setOutput(data.result);
         await fetchBalance();
-
-        await fetch("/api/history", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            input_text: input,
-            output_text: data.result,
-          }),
-        });
-
         fetchHistory();
       }
     } catch {
@@ -160,12 +162,11 @@ export default function Humanizepagee() {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-       
       </div>
     );
   }
 
-  // ✅ Render page (signed in)
+  // ✅ Render page
   return (
     <main className="max-w-5xl mx-auto py-12 px-4 gap-8 space-y-6">
       {/* Header */}
@@ -255,23 +256,40 @@ export default function Humanizepagee() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Paste your AI text here..."
-              className="min-h-[200px] resize-none pb-16"
+              className="h-[250px] resize-none pb-16"
             />
+
+            {/* Word count & validation */}
+            <div className="flex justify-between items-center mt-2 text-sm">
+              <p className="text-muted-foreground">
+                {wordCount} words / max {quota}
+              </p>
+              {tooShort && (
+                <span className="text-destructive font-medium">
+                  Minimum 50 words required
+                </span>
+              )}
+              {exceeded && (
+                <span className="text-destructive font-medium">
+                  Word count exceeded (max {quota})
+                </span>
+              )}
+            </div>
+
             <div className="flex items-end justify-end">
               <Button
                 className="w-full lg:w-fit flex items-center gap-2"
-                onClick={() => {
-                  if (!input.trim()) return;
-                  if (hasBalance) {
-                    handleHumanize();
-                  } else {
-                    router.push("/pricing");
-                  }
-                }}
-                disabled={loading || !input.trim()}
+                onClick={handleHumanize}
+                disabled={loading || !input.trim() || tooShort || exceeded}
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {loading ? "Humanizing..." : "Humanize"}
+                {loading
+                  ? "Humanizing..."
+                  : tooShort
+                  ? "Min 50 words required"
+                  : exceeded
+                  ? `Limit exceeded (${quota})`
+                  : "Humanize"}
               </Button>
             </div>
           </div>
@@ -285,8 +303,50 @@ export default function Humanizepagee() {
           variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
           whileHover={{ scale: 1.01 }}
         >
-          <div className="bg-card p-4 h-full space-y-4 border rounded-xl">
-            <h2>Output</h2>
+          <div className="bg-card p-4 h-full space-y-4 border rounded-xl relative">
+            <div className="flex justify-between items-center">
+              <h2>Output</h2>
+              <div className="flex gap-2">
+                {/* Copy */}
+                <button
+                  onClick={() => {
+                    if (output) {
+                      navigator.clipboard.writeText(output);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }
+                  }}
+                  className="p-1 hover:bg-muted rounded"
+                  title={copied ? "Copied!" : "Copy"}
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <Copy className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+
+                {/* Clear */}
+                <button
+                  onClick={() => setOutput("")}
+                  className="p-1 hover:bg-muted rounded"
+                  title="Clear"
+                >
+                  <Trash2 className="h-4 w-4 text-muted-foreground" />
+                </button>
+
+                {/* Regenerate */}
+                <button
+                  onClick={() => handleHumanize()}
+                  disabled={!input.trim()}
+                  className="p-1 hover:bg-muted rounded disabled:opacity-50"
+                  title="Regenerate"
+                >
+                  <RefreshCcw className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </div>
+            </div>
+
             <div className="min-h-[200px] whitespace-pre-wrap text-sm leading-relaxed">
               {loading && !output
                 ? "⏳ Processing..."
@@ -327,7 +387,8 @@ export default function Humanizepagee() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="p-3 border rounded-md bg-muted"
+                    className="p-3 border rounded-md bg-muted cursor-pointer hover:bg-accent"
+                    onClick={() => setSelectedItem(item)}
                   >
                     <p className="text-xs text-muted-foreground">
                       {new Date(item.created_at).toLocaleString()}
@@ -347,6 +408,45 @@ export default function Humanizepagee() {
           </AnimatePresence>
         </div>
       </motion.section>
+
+      {/* Modal for history detail */}
+      <AnimatePresence>
+        {selectedItem && (
+          <motion.div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white dark:bg-neutral-900 p-6 rounded-xl max-w-2xl w-full shadow-lg space-y-4"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-bold">History Detail</h2>
+                <button
+                  onClick={() => setSelectedItem(null)}
+                  className="text-destructive hover:underline"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="space-y-3 text-sm max-h-[60vh] overflow-auto">
+                <div>
+                  <p className=" border-b  font-bold mb-1">Input</p>
+                  <p className="whitespace-pre-wrap border-b pb-2">{selectedItem.input_text}</p>
+                </div>
+                <div>
+                  <p className=" font-bold border-b mb-1">Output</p>
+                  <p className="whitespace-pre-wrap">{selectedItem.output_text}</p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

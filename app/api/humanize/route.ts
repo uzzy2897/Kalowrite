@@ -8,87 +8,102 @@ const openai = new OpenAI({
 });
 
 export async function POST(req: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  try {
+    // ✅ Clerk auth
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  const { text } = await req.json();
-  const wordCount = text.trim().split(/\s+/).length;
+    // ✅ Parse request
+    const { text } = await req.json();
+    if (!text || typeof text !== "string") {
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    }
 
-  // ✅ Check balance
-  const { data: balance, error: balErr } = await supabaseAdmin
-    .from("user_balance")
-    .select("balance_words")
-    .eq("user_id", userId)
-    .single();
+    const wordCount = text.trim().split(/\s+/).length;
 
-  if (balErr || !balance) {
-    return NextResponse.json({ error: "Balance check failed" }, { status: 500 });
-  }
+    // ✅ Check balance
+    const { data: balance, error: balErr } = await supabaseAdmin
+      .from("user_balance")
+      .select("balance_words")
+      .eq("user_id", userId)
+      .single();
 
-  if (balance.balance_words < wordCount) {
-    return NextResponse.json({ error: "Not enough words" }, { status: 403 });
-  }
+    if (balErr || !balance) {
+      console.error("❌ Balance check failed:", balErr);
+      return NextResponse.json({ error: "Balance check failed" }, { status: 500 });
+    }
 
-  // ✅ Prompt for OpenAI
-  const prompt = `
-You are the world's best human writer. Follow these strict rules:
+    if (balance.balance_words < wordCount) {
+      return NextResponse.json({ error: "Not enough words" }, { status: 403 });
+    }
 
-- Rewrite text into IELTS band 5.5 style sentence structures, but keep vocabulary level at IELTS band 8.
-- Remove all obvious AI-style phrasing. Add unpredictability, slips, and variety.
-- No em dashes allowed. Use only commas, colons, or semicolons if needed.
-- The output must feel naturally written by a human, not a machine.
-- Return only the rewritten content, no explanations.
-
-Here is the content to humanize:
-
+    // ✅ Prompt
+    const prompt = `
+    Rewrite the following text so it reads like a natural human draft. 
+    Follow these rules:
+    - Vary sentence length and rhythm (short, long, fragmented).
+    - Use everyday connectors (but, so, by the way, actually).
+    - Allow small imperfections (occasional redundancy, contractions, casual tone).
+    - Add human-like flow: mix formal and informal moments, as if written in one sitting.
+    - Avoid robotic phrasing, overly balanced sentences, or excessive polish.
+    - Keep meaning intact, but make it sound like a blog post, student essay, or personal note.
+    
+    
+TEXT:
 ${text}
 `;
 
-  let output: string;
-  try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "You are a humanization engine for AI text." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.9,
+    // ✅ Call OpenAI
+    let output: string;
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are a humanization engine for AI text." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.9,
+      });
+
+      output = response.choices[0]?.message?.content?.trim() || "";
+    } catch (err) {
+      console.error("❌ OpenAI API error:", err);
+      return NextResponse.json({ error: "Failed to humanize text" }, { status: 500 });
+    }
+
+    if (!output) {
+      return NextResponse.json({ error: "AI returned no content" }, { status: 500 });
+    }
+
+    // ✅ Deduct words
+    const { error: deductErr } = await supabaseAdmin.rpc("deduct_balance", {
+      uid: userId,
+      amount: wordCount,
+    });
+    if (deductErr) {
+      console.error("❌ deduct_balance failed:", deductErr);
+      return NextResponse.json({ error: "Failed to deduct balance" }, { status: 500 });
+    }
+
+    // ✅ Save history
+    const { error: historyErr } = await supabaseAdmin.from("history").insert({
+      user_id: userId,
+      input_text: text.trim(),
+      output_text: output,
+      words_used: wordCount,
     });
 
-    output = response.choices[0]?.message?.content?.trim() || "";
-  } catch (error) {
-    console.error("OpenAI API error:", error);
-    return NextResponse.json({ error: "Failed to humanize text" }, { status: 500 });
+    if (historyErr) {
+      console.error("❌ History insert failed:", historyErr);
+      return NextResponse.json({ error: "Failed to save history" }, { status: 500 });
+    }
+
+    // ✅ Success
+    return NextResponse.json({ result: output });
+  } catch (err) {
+    console.error("❌ Unexpected error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  if (!output) {
-    return NextResponse.json({ error: "AI returned no content" }, { status: 500 });
-  }
-
-  // ✅ Deduct words
-  const { error: deductErr } = await supabaseAdmin.rpc("deduct_balance", {
-    uid: userId,
-    amount: wordCount,
-  });
-  if (deductErr) {
-    console.error("❌ deduct_balance failed:", deductErr);
-    return NextResponse.json({ error: "Failed to deduct balance" }, { status: 500 });
-  }
-
-  // ✅ Save history
-  const { error: historyErr } = await supabaseAdmin.from("history").insert({
-    user_id: userId,
-    input_text: text,
-    output_text: output,
-    words_used: wordCount,
-  });
-
-  if (historyErr) {
-    console.error("❌ History insert failed:", historyErr);
-    return NextResponse.json({ error: "Failed to save history" }, { status: 500 });
-  }
-
-  return NextResponse.json({ result: output });
 }
