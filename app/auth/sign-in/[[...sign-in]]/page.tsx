@@ -2,11 +2,20 @@
 
 import { SignIn } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
+import { useSearchParams } from "next/navigation";
 
 export default function SignInPage() {
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get("redirect_url") || "/";
   return (
+    
     <div className="flex h-screen items-center justify-center">
       <SignIn
+   path="/auth/sign-in"            // 👈 required when using routing="path"
+   routing="path"
+   signUpUrl="/auth/sign-up"
+   fallbackRedirectUrl="/"
+   forceRedirectUrl={redirectUrl}  // 👈 dynamic redirect
 
        appearance={{
         elements:{

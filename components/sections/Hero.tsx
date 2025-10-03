@@ -28,7 +28,7 @@ const Hero = () => {
   const handleHumanize = () => {
     if (!inputText.trim()) return;
     const encodedText = encodeURIComponent(inputText);
-    router.push(`/humanize-ai?text=${encodedText}`);
+    router.push(`/humanize?text=${encodedText}`);
   };
 
 
@@ -122,7 +122,7 @@ const Hero = () => {
                     onClick={() =>
                       sessionStorage.setItem(
                         "afterSignInRedirect",
-                        "/humanize-ai"
+                        "/humanize"
                       )
                     }
                   >

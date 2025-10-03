@@ -18,12 +18,12 @@ export async function GET() {
   }
 
   try {
-    // ✅ Fetch user balance
+    // ✅ Use maybeSingle instead of single
     const { data, error } = await supabaseAdmin
       .from("user_balance")
       .select("balance_words, plan")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("❌ Failed to fetch user balance:", error);
