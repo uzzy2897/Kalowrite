@@ -7,16 +7,26 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-08-27.basil",
 });
 
-// Helpers
-function getPeriod(sub: Stripe.Subscription) {
-  const start = (sub as any)?.current_period_start
-    ? new Date((sub as any).current_period_start * 1000).toISOString()
-    : null;
-  const end = (sub as any)?.current_period_end
-    ? new Date((sub as any).current_period_end * 1000).toISOString()
-    : null;
-  return { start, end };
+function getPeriod(sub: Stripe.Subscription): { start: string; end: string } {
+  // Safely access fields via type narrowing
+  const startUnix =
+    (sub as any)?.current_period_start ??
+    (sub as any)?.trial_start ??
+    (sub as any)?.start_date ??
+    Math.floor(Date.now() / 1000);
+
+  const endUnix =
+    (sub as any)?.current_period_end ??
+    (sub as any)?.trial_end ??
+    Math.floor(Date.now() / 1000 + 30 * 86400);
+
+  return {
+    start: new Date(startUnix * 1000).toISOString(),
+    end: new Date(endUnix * 1000).toISOString(),
+  };
 }
+
+
 function getBillingInterval(sub: Stripe.Subscription): "monthly" | "yearly" {
   const interval = sub.items.data[0]?.price?.recurring?.interval;
   if (interval === "year") return "yearly";

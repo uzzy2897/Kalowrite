@@ -1,5 +1,6 @@
+// app/api/schedule-downgrade/route.ts
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { currentUser } from "@clerk/nextjs/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPriceId } from "@/lib/plans";
@@ -10,102 +11,82 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: Request) {
   try {
-    // 1️⃣ Clerk Auth
-    const { userId } = await auth();
-    if (!userId)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // 1) Clerk auth
+    const user = await currentUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userId = user.id;
 
-    // 2️⃣ Parse body
+    // 2) Body
     const { targetPlan, billing = "monthly" } = await req.json();
     const targetPriceId = getPriceId(targetPlan, billing);
-    if (!targetPriceId)
-      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+    if (!targetPriceId) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
 
-    // 3️⃣ Fetch membership
+    // 3) Membership row (to get Stripe customer)
     const { data: membership, error: memErr } = await supabaseAdmin
       .from("membership")
       .select("stripe_customer_id, plan")
       .eq("user_id", userId)
       .single();
 
-    if (memErr || !membership?.stripe_customer_id)
-      return NextResponse.json(
-        { error: "No active membership found" },
-        { status: 404 }
-      );
+    if (memErr || !membership?.stripe_customer_id) {
+      return NextResponse.json({ error: "No active membership found" }, { status: 404 });
+    }
 
-    // 4️⃣ Retrieve current subscription
+    // 4) Active subscription
     const subs = await stripe.subscriptions.list({
       customer: membership.stripe_customer_id,
       status: "active",
       limit: 1,
     });
-
     const subSummary = subs.data[0];
-    if (!subSummary)
-      return NextResponse.json(
-        { error: "No active subscription found" },
-        { status: 404 }
-      );
+    if (!subSummary) return NextResponse.json({ error: "No active subscription found" }, { status: 404 });
 
-    // ✅ Unwrap the Basil response
+    // 5) Retrieve full sub (TS-safe access via narrow any-casts)
     const raw = await stripe.subscriptions.retrieve(subSummary.id, {
       expand: ["items.data.price"],
     });
 
-    // ⚙️ Fix: cast to include hidden fields
-    type StripeSubWithPeriod = Stripe.Subscription & {
-      current_period_start?: number;
-      current_period_end?: number;
-      trial_start?: number;
-      trial_end?: number;
-    };
+    const items = (raw as any).items as Stripe.ApiList<Stripe.SubscriptionItem>; // narrow cast
+    const currentPriceId = items?.data?.find((i) => i.price?.active)?.price?.id ?? null;
 
-    const sub = ("data" in raw ? (raw as any).data : raw) as StripeSubWithPeriod;
+    const currentPeriodStart = ((raw as any).current_period_start ?? null) as number | null;
+    const currentPeriodEnd = ((raw as any).current_period_end ?? null) as number | null;
 
-    const currentPriceId = sub.items?.data?.[0]?.price?.id;
+    if (!currentPeriodEnd) {
+      return NextResponse.json({ error: "Subscription missing period info" }, { status: 400 });
+    }
 
-    // 5️⃣ Safely access period info
-    const currentPeriodEnd =
-      sub.current_period_end ??
-      (sub.status === "trialing" ? sub.trial_end ?? null : null);
-
-    const currentPeriodStart =
-      sub.current_period_start ??
-      (sub.status === "trialing" ? sub.trial_start ?? null : null);
-
-    if (!currentPeriodEnd)
-      return NextResponse.json(
-        { error: "Subscription missing period info" },
-        { status: 400 }
-      );
-
-    if (currentPriceId === targetPriceId)
+    if (currentPriceId === targetPriceId) {
       return NextResponse.json({ message: "Already on this plan." });
+    }
 
-    // 6️⃣ Schedule downgrade
+    // 6) Schedule the downgrade at period end
     const schedule = await stripe.subscriptionSchedules.create({
-      from_subscription: sub.id,
+      from_subscription: (raw as any).id as string,
       start_date: currentPeriodEnd,
-      phases: [{ items: [{ price: targetPriceId, quantity: 1 }] }],
+      phases: [
+        {
+          items: [{ price: targetPriceId, quantity: 1 }],
+          metadata: { userId, targetPlan, billing },
+        },
+      ],
+      metadata: { userId, targetPlan, billing },
     });
 
-    // 7️⃣ Update Supabase
+    // 7) Persist scheduling info (use upsert + onConflict)
     await supabaseAdmin
       .from("membership")
-      .update({
-        scheduled_plan: targetPlan,
-        scheduled_plan_effective_at: new Date(
-          currentPeriodEnd * 1000
-        ).toISOString(),
-        started_at: currentPeriodStart
-          ? new Date(currentPeriodStart * 1000).toISOString()
-          : null,
-        ends_at: new Date(currentPeriodEnd * 1000).toISOString(),
-      })
-      .eq("user_id", userId);
+      .upsert(
+        {
+          user_id: userId,
+          scheduled_plan: targetPlan,
+          scheduled_plan_effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
+          started_at: currentPeriodStart ? new Date(currentPeriodStart * 1000).toISOString() : null,
+          ends_at: new Date(currentPeriodEnd * 1000).toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
 
-    // ✅ Done
     return NextResponse.json({
       success: true,
       message: `Downgrade to '${targetPlan}' scheduled for the end of this billing period.`,
@@ -114,9 +95,6 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("❌ Downgrade error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message ?? "Internal server error" }, { status: 500 });
   }
 }
