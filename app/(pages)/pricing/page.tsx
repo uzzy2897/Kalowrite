@@ -66,6 +66,7 @@ export default function PricingPage() {
       yearlyPrice: "$59.88/yr",
       features: [
         "5,000 words per month",
+        "500 words per request",
         "Bypass all AI detectors",
         "Undetectable results",
         "Plagiarism free",

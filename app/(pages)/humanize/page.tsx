@@ -4,7 +4,14 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Check, Copy, HistoryIcon, Loader2, RefreshCcw, Trash2 } from "lucide-react";
+import {
+  Check,
+  Copy,
+  HistoryIcon,
+  Loader2,
+  RefreshCcw,
+  Trash2,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
 import { usePathname, useRouter } from "next/navigation";
@@ -24,11 +31,9 @@ export default function Humanizepagee() {
   const [history, setHistory] = useState<any[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-
-  // ✅ Modal state
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
-  // ✅ Plan quotas (per request)
+  // ✅ Plan quotas
   const planQuotas: Record<string, number> = {
     free: 500,
     basic: 500,
@@ -41,6 +46,8 @@ export default function Humanizepagee() {
     balance !== null && quota > 0 ? Math.min((balance / quota) * 100, 100) : 0;
   const color =
     percent > 70 ? "bg-emerald-500" : percent > 30 ? "bg-yellow-500" : "bg-red-500";
+
+  const lowBalance = percent < 30;
 
   // ✅ Derived input word count
   const words = input.trim().split(/\s+/).filter(Boolean);
@@ -69,9 +76,7 @@ export default function Humanizepagee() {
     try {
       const res = await fetch("/api/history");
       const data = await res.json();
-      if (res.ok) {
-        setHistory(data.history || []);
-      }
+      if (res.ok) setHistory(data.history || []);
     } catch {
       console.error("Failed to fetch history");
     }
@@ -87,10 +92,9 @@ export default function Humanizepagee() {
     }
   };
 
-  // ✅ Load balance + history
+  // ✅ Load data
   useEffect(() => {
     let ignore = false;
-
     const loadData = async () => {
       if (!isSignedIn) {
         setInitialLoading(false);
@@ -110,7 +114,6 @@ export default function Humanizepagee() {
     };
 
     if (isLoaded) loadData();
-
     return () => {
       ignore = true;
     };
@@ -157,7 +160,13 @@ export default function Humanizepagee() {
 
   const hasBalance = balance !== null && balance > 0;
 
-  // ✅ Loading UI
+  // ✅ Determine upgrade/top-up visibility based on plan
+  const showUpgrade =
+    (plan === "free" || plan === "basic" || plan === "pro") && (lowBalance || !hasBalance);
+  const showTopup =
+    (plan === "pro" || plan === "ultra") && (lowBalance || !hasBalance);
+
+  // ✅ Loading screen
   if (!isLoaded || initialLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -177,7 +186,7 @@ export default function Humanizepagee() {
         className="text-center"
       >
         <h1 className="text-3xl font-bold mb-2">Humanizer AI</h1>
-        <p className="mb-6">
+        <p className="mb-6 text-muted-foreground">
           Paste your text below and transform it into natural content.
         </p>
       </motion.div>
@@ -189,44 +198,64 @@ export default function Humanizepagee() {
         transition={{ delay: 0.2 }}
         className="mb-6 space-y-3"
       >
-        <div className="flex items-center gap-3 flex-col lg:flex-row my-4 justify-between">
+        <div className="flex items-center justify-between flex-col lg:flex-row gap-3 my-4">
           <div className="flex gap-2 items-center">
             <Badge variant="secondary">{plan || "free"}</Badge>
             <Badge variant="outline">
-              {balance !== null ? `${balance.toLocaleString()} words available` : "…"}
+              {balance !== null ? `${balance.toLocaleString()} words left` : "…"}
             </Badge>
           </div>
 
-          {!hasBalance && (
+          {/* ✅ Upgrade / Top-up Logic */}
+          {(showUpgrade || showTopup) && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex justify-end flex-col lg:flex-row my-4 lg:my-0 items-center gap-2"
+              className="flex flex-col lg:flex-row items-center gap-2"
             >
-              <p className="text-sm text-destructive px-3 font-medium">
-                You’ve run out of words.
+              <p
+                className={`text-sm font-medium ${
+                  hasBalance ? "text-yellow-600 dark:text-yellow-400" : "text-destructive"
+                }`}
+              >
+                {hasBalance
+                  ? "⚠️ Your balance is getting low."
+                  : "❌ You’ve run out of words."}
               </p>
-              <div className="space-x-2">
-                <Button asChild className="bg-emerald-600 text-white">
-                  <a href="/pricing">Upgrade Plan</a>
-                </Button>
-                <span>or</span>
-                <Button asChild>
-                  <a href="/topup">Buy Top-up</a>
-                </Button>
+
+              <div className="flex gap-2">
+                {showUpgrade && (
+                  <Button asChild className="bg-emerald-600 text-white">
+                    <a href="/pricing">Upgrade Plan</a>
+                  </Button>
+                )}
+
+                {showTopup && (
+                  <Button asChild variant="secondary">
+                    <a href="/topup">Buy Top-up</a>
+                  </Button>
+                )}
               </div>
             </motion.div>
           )}
         </div>
 
         {/* Progress Bar */}
-        <div className="h-2 bg-muted rounded-full w-full overflow-hidden">
+        <div className="relative h-2 bg-muted rounded-full w-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${percent}%` }}
             transition={{ duration: 0.6 }}
             className={`h-full ${color}`}
           />
+          {lowBalance && (
+            <motion.div
+              className="absolute inset-0 animate-pulse bg-red-500/10 pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1.2, repeat: Infinity, repeatType: "mirror" }}
+            />
+          )}
         </div>
         <p className="text-xs text-muted-foreground text-center">
           {balance !== null
@@ -237,7 +266,7 @@ export default function Humanizepagee() {
 
       {/* Input + Output */}
       <motion.div
-        className="grid grid-cols-1 lg:grid-cols-2 gap-2"
+        className="grid grid-cols-1 lg:grid-cols-2 gap-4"
         initial="hidden"
         animate="visible"
         variants={{
@@ -245,21 +274,21 @@ export default function Humanizepagee() {
           visible: { transition: { staggerChildren: 0.15 } },
         }}
       >
-        {/* Input */}
+        {/* Input Section */}
         <motion.section
           variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
           whileHover={{ scale: 1.01 }}
         >
-          <div className="bg-card p-4 space-y-4 border rounded-xl relative">
+          <div className="bg-card p-4 h-96 space-y-4 border rounded-xl relative">
             <h2>Your Content</h2>
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Paste your AI text here..."
-              className="h-[250px] resize-none pb-16"
+              className="h-[200px] resize-none pb-16"
             />
 
-            {/* Word count & validation */}
+            {/* Word count */}
             <div className="flex justify-between items-center mt-2 text-sm">
               <p className="text-muted-foreground">
                 {wordCount} words / max {quota}
@@ -276,7 +305,7 @@ export default function Humanizepagee() {
               )}
             </div>
 
-            <div className="flex items-end justify-end">
+            <div className="flex justify-end">
               <Button
                 className="w-full lg:w-fit flex items-center gap-2"
                 onClick={handleHumanize}
@@ -293,17 +322,15 @@ export default function Humanizepagee() {
               </Button>
             </div>
           </div>
-          {error && (
-            <p className="mt-4 text-destructive text-sm font-medium">{error}</p>
-          )}
+          {error && <p className="mt-4 text-destructive text-sm font-medium">{error}</p>}
         </motion.section>
 
-        {/* Output */}
+        {/* Output Section */}
         <motion.section
           variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
           whileHover={{ scale: 1.01 }}
         >
-          <div className="bg-card p-4 h-full space-y-4 border rounded-xl relative">
+          <div className="bg-card p-4 h-96 space-y-4 border rounded-xl relative">
             <div className="flex justify-between items-center">
               <h2>Output</h2>
               <div className="flex gap-2">
@@ -347,7 +374,7 @@ export default function Humanizepagee() {
               </div>
             </div>
 
-            <div className="min-h-[200px] whitespace-pre-wrap text-sm leading-relaxed">
+            <div className="h-[200px] overflow-hidden whitespace-pre-wrap text-sm leading-relaxed">
               {loading && !output
                 ? "⏳ Processing..."
                 : output || "Output will appear here after processing."}
@@ -356,7 +383,7 @@ export default function Humanizepagee() {
         </motion.section>
       </motion.div>
 
-      {/* History */}
+      {/* History Section */}
       <motion.section
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -409,7 +436,7 @@ export default function Humanizepagee() {
         </div>
       </motion.section>
 
-      {/* Modal for history detail */}
+      {/* History Detail Modal */}
       <AnimatePresence>
         {selectedItem && (
           <motion.div
@@ -435,11 +462,13 @@ export default function Humanizepagee() {
               </div>
               <div className="space-y-3 text-sm max-h-[60vh] overflow-auto">
                 <div>
-                  <p className=" border-b  font-bold mb-1">Input</p>
-                  <p className="whitespace-pre-wrap border-b pb-2">{selectedItem.input_text}</p>
+                  <p className="border-b font-bold mb-1">Input</p>
+                  <p className="whitespace-pre-wrap border-b pb-2">
+                    {selectedItem.input_text}
+                  </p>
                 </div>
                 <div>
-                  <p className=" font-bold border-b mb-1">Output</p>
+                  <p className="font-bold border-b mb-1">Output</p>
                   <p className="whitespace-pre-wrap">{selectedItem.output_text}</p>
                 </div>
               </div>
