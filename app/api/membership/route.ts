@@ -1,19 +1,16 @@
+// app/api/membership/route.ts
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { currentUser } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function GET() {
   try {
-    // ✅ Auth check
-    const { userId } = await auth();
-    if (!userId)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await currentUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // ✅ Fetch membership
     const { data, error } = await supabaseAdmin
       .from("membership")
-      .select(
-        `
+      .select(`
         plan,
         billing_interval,
         scheduled_plan,
@@ -21,14 +18,12 @@ export async function GET() {
         started_at,
         ends_at,
         active
-      `
-      )
-      .eq("user_id", userId)
+      `)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (error) throw error;
 
-    // ✅ If no record yet → assume Free Plan
     if (!data) {
       return NextResponse.json({
         plan: "free",
@@ -42,9 +37,6 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (err: any) {
     console.error("❌ /api/membership error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message ?? "Internal error" }, { status: 500 });
   }
 }
