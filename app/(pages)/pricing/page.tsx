@@ -19,6 +19,15 @@ export default function PricingPage() {
 
   const currentPlan = membership?.plan ?? "free";
   const scheduledPlan = membership?.scheduled_plan ?? null;
+  const planOrder = ["free", "basic", "pro", "ultra"];
+
+  // ✅ Auto-clear messages after 5s
+  useEffect(() => {
+    if (message) {
+      const t = setTimeout(() => setMessage(null), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [message]);
 
   // ✅ Fetch current membership
   useEffect(() => {
@@ -28,8 +37,7 @@ export default function PricingPage() {
         const data = await res.json();
         if (res.ok) setMembership(data);
         else setMembership({ plan: "free" });
-      } catch (err) {
-        console.error("Failed to fetch membership", err);
+      } catch {
         setMembership({ plan: "free" });
       } finally {
         setLoadingUser(false);
@@ -49,11 +57,8 @@ export default function PricingPage() {
         body: JSON.stringify({ plan, billing }),
       });
       const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setMessage({ type: "error", text: data.error || "Checkout failed." });
-      }
+      if (data.url) window.location.href = data.url;
+      else setMessage({ type: "error", text: data.error || "Checkout failed." });
     } catch {
       setMessage({ type: "error", text: "Failed to start checkout." });
     }
@@ -68,7 +73,7 @@ export default function PricingPage() {
       const res = await fetch("/api/schedule-downgrade", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetPlan: plan }),
+        body: JSON.stringify({ targetPlan: plan, billing }),
       });
       const data = await res.json();
 
@@ -93,6 +98,7 @@ export default function PricingPage() {
     setLoadingPlan(null);
   };
 
+  // ✅ Plans config
   const plans = [
     {
       name: "Basic",
@@ -135,8 +141,6 @@ export default function PricingPage() {
     },
   ];
 
-  const planOrder = ["free", "basic", "pro", "ultra"];
-
   return (
     <main className="max-w-7xl mx-auto py-16 px-6 text-center">
       {/* Header */}
@@ -173,12 +177,7 @@ export default function PricingPage() {
       )}
 
       {/* Billing toggle */}
-      <motion.div
-        className="flex justify-center mb-12"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2, duration: 0.5 }}
-      >
+      <div className="flex justify-center mb-12">
         <div className="inline-flex items-center border rounded-full bg-accent overflow-hidden">
           <button
             onClick={() => setBilling("monthly")}
@@ -201,7 +200,7 @@ export default function PricingPage() {
             Yearly
           </button>
         </div>
-      </motion.div>
+      </div>
 
       {/* Pricing Cards */}
       <motion.div
@@ -277,9 +276,7 @@ export default function PricingPage() {
               ) : (
                 <button
                   onClick={() =>
-                    isUpgrade
-                      ? handleUpgrade(plan.slug)
-                      : handleDowngrade(plan.slug)
+                    isUpgrade ? handleUpgrade(plan.slug) : handleDowngrade(plan.slug)
                   }
                   disabled={loadingPlan === plan.slug}
                   className={`mt-auto px-6 py-3 rounded-md transition-colors ${
