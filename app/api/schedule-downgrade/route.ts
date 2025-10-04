@@ -11,46 +11,61 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: Request) {
   try {
-    // 1️⃣ Auth
+    // 1️⃣ Clerk Auth
     const user = await currentUser();
     if (!user)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const userId = user.id;
 
-    // 2️⃣ Parse body
+    // 2️⃣ Parse request body
     const { targetPlan, billing = "monthly" } = await req.json();
     const targetPriceId = getPriceId(targetPlan, billing);
     if (!targetPriceId)
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
 
-    // 3️⃣ Get membership
+    // 3️⃣ Fetch membership to get subscription
     const { data: membership, error } = await supabaseAdmin
       .from("membership")
       .select("stripe_customer_id, stripe_subscription_id, plan")
       .eq("user_id", userId)
       .single();
 
-    if (error || !membership?.stripe_subscription_id)
+    if (error || !membership?.stripe_subscription_id) {
+      console.error("❌ No active subscription found:", error);
       return NextResponse.json(
         { error: "No active subscription found" },
         { status: 404 }
       );
+    }
 
-    // 4️⃣ Retrieve subscription
+    // 4️⃣ Retrieve full subscription from Stripe
     const sub = await stripe.subscriptions.retrieve(
-      membership.stripe_subscription_id
+      membership.stripe_subscription_id,
+      { expand: ["items.data.price"] }
     );
-    const currentPeriodEnd = (sub as any).current_period_end;
 
-    if (!currentPeriodEnd)
-      return NextResponse.json(
-        { error: "Subscription missing period info" },
-        { status: 400 }
-      );
+    // 🧠 Defensive access (Stripe sometimes omits these fields)
+    const s = sub as any;
+    const currentPeriodEnd =
+      s.current_period_end ??
+      s.trial_end ??
+      (s.billing_cycle_anchor
+        ? s.billing_cycle_anchor + 30 * 86400
+        : Math.floor(Date.now() / 1000 + 30 * 86400));
+    const currentPeriodStart =
+      s.current_period_start ??
+      s.trial_start ??
+      Math.floor(Date.now() / 1000);
 
-    // 5️⃣ Schedule downgrade (Stripe can’t auto-schedule)
-    // We simply mark it cancel_at_period_end=true
-    // and store next plan in Supabase.
+    // 🕓 Log period info for debugging
+    console.log("🕓 Subscription period:", {
+      start: currentPeriodStart,
+      end: currentPeriodEnd,
+      hasPeriod: !!s.current_period_end,
+    });
+
+    // 5️⃣ Instead of scheduling via SubscriptionSchedule (not allowed),
+    // we mark cancel_at_period_end=true and store next plan in Supabase
     await stripe.subscriptions.update(sub.id, {
       cancel_at_period_end: true,
       metadata: {
@@ -60,7 +75,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // 6️⃣ Update membership
+    // 6️⃣ Update Supabase membership info
     await supabaseAdmin
       .from("membership")
       .upsert(
@@ -70,6 +85,7 @@ export async function POST(req: Request) {
           scheduled_plan_effective_at: new Date(
             currentPeriodEnd * 1000
           ).toISOString(),
+          started_at: new Date(currentPeriodStart * 1000).toISOString(),
           ends_at: new Date(currentPeriodEnd * 1000).toISOString(),
         },
         { onConflict: "user_id" }
@@ -78,7 +94,7 @@ export async function POST(req: Request) {
     // ✅ Done
     return NextResponse.json({
       success: true,
-      message: `Downgrade to '${targetPlan}' scheduled at period end.`,
+      message: `Downgrade to '${targetPlan}' scheduled at the end of this billing period.`,
       effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
     });
   } catch (err: any) {
