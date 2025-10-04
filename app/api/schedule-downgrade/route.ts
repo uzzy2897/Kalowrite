@@ -11,33 +11,32 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: Request) {
   try {
-    // 1️⃣ Clerk auth
+    // 1️⃣ Auth
     const user = await currentUser();
     if (!user)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const userId = user.id;
 
-    // 2️⃣ Parse body
+    // 2️⃣ Body
     const { targetPlan, billing = "monthly" } = await req.json();
     const targetPriceId = getPriceId(targetPlan, billing);
     if (!targetPriceId)
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
 
-    // 3️⃣ Fetch customer id
+    // 3️⃣ Find Stripe customer
     const { data: membership, error: memErr } = await supabaseAdmin
       .from("membership")
       .select("stripe_customer_id, plan")
       .eq("user_id", userId)
       .single();
 
-    if (memErr || !membership?.stripe_customer_id) {
+    if (memErr || !membership?.stripe_customer_id)
       return NextResponse.json(
         { error: "No active membership found" },
         { status: 404 }
       );
-    }
 
-    // 4️⃣ Retrieve the active subscription
+    // 4️⃣ Get active subscription
     const subs = await stripe.subscriptions.list({
       customer: membership.stripe_customer_id,
       status: "active",
@@ -50,7 +49,7 @@ export async function POST(req: Request) {
         { status: 404 }
       );
 
-    // ✅ Expand fully so Stripe returns period data
+    // 5️⃣ Retrieve full subscription with expansions
     const sub = (await stripe.subscriptions.retrieve(subSummary.id, {
       expand: ["items.data.price", "latest_invoice", "schedule"],
     })) as Stripe.Subscription & {
@@ -60,7 +59,6 @@ export async function POST(req: Request) {
       trial_end?: number;
     };
 
-    // 5️⃣ Safely extract billing info
     const currentPriceId =
       sub.items?.data?.find((i) => i.price?.active)?.price?.id ?? null;
 
@@ -82,20 +80,20 @@ export async function POST(req: Request) {
     if (currentPriceId === targetPriceId)
       return NextResponse.json({ message: "Already on this plan." });
 
-    // 6️⃣ Schedule downgrade at the end of current period
+    // 6️⃣ Create schedule — ❗️no start_date here
     const schedule = await stripe.subscriptionSchedules.create({
       from_subscription: sub.id,
-      start_date: currentPeriodEnd,
       phases: [
         {
           items: [{ price: targetPriceId, quantity: 1 }],
           metadata: { userId, targetPlan, billing },
+          // Optionally: `iterations: 1` if you want only one renewal
         },
       ],
       metadata: { userId, targetPlan, billing },
     });
 
-    // 7️⃣ Update Supabase record
+    // 7️⃣ Save info in Supabase
     await supabaseAdmin
       .from("membership")
       .upsert(
@@ -111,10 +109,10 @@ export async function POST(req: Request) {
         { onConflict: "user_id" }
       );
 
-    // ✅ Done
+    // ✅ Success
     return NextResponse.json({
       success: true,
-      message: `Downgrade to '${targetPlan}' scheduled for the end of this billing period.`,
+      message: `Downgrade to '${targetPlan}' scheduled for end of current billing period.`,
       effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
       schedule_id: schedule.id,
     });
