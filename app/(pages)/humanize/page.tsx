@@ -330,56 +330,58 @@ export default function Humanizepagee() {
           variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
           whileHover={{ scale: 1.01 }}
         >
-          <div className="bg-card p-4 h-96 space-y-4 border rounded-xl relative">
-            <div className="flex justify-between items-center">
-              <h2>Output</h2>
-              <div className="flex gap-2">
-                {/* Copy */}
-                <button
-                  onClick={() => {
-                    if (output) {
-                      navigator.clipboard.writeText(output);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }
-                  }}
-                  className="p-1 hover:bg-muted rounded"
-                  title={copied ? "Copied!" : "Copy"}
-                >
-                  {copied ? (
-                    <Check className="h-4 w-4 text-emerald-500" />
-                  ) : (
-                    <Copy className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </button>
+      <div className="bg-card h-96 space-y-4 border rounded-xl relative overflow-y-auto">
+  <div className="flex justify-between items-center sticky top-0 bg-card z-10 px-4 py-2">
+    <h2>Output</h2>
+    <div className="flex gap-2">
+      {/* Copy */}
+      <button
+        onClick={() => {
+          if (output) {
+            navigator.clipboard.writeText(output);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }
+        }}
+        className="p-1 hover:bg-muted rounded"
+        title={copied ? "Copied!" : "Copy"}
+      >
+        {copied ? (
+          <Check className="h-4 w-4 text-emerald-500" />
+        ) : (
+          <Copy className="h-4 w-4 text-muted-foreground" />
+        )}
+      </button>
 
-                {/* Clear */}
-                <button
-                  onClick={() => setOutput("")}
-                  className="p-1 hover:bg-muted rounded"
-                  title="Clear"
-                >
-                  <Trash2 className="h-4 w-4 text-muted-foreground" />
-                </button>
+      {/* Clear */}
+      <button
+        onClick={() => setOutput("")}
+        className="p-1 hover:bg-muted rounded"
+        title="Clear"
+      >
+        <Trash2 className="h-4 w-4 text-muted-foreground" />
+      </button>
 
-                {/* Regenerate */}
-                <button
-                  onClick={() => handleHumanize()}
-                  disabled={!input.trim()}
-                  className="p-1 hover:bg-muted rounded disabled:opacity-50"
-                  title="Regenerate"
-                >
-                  <RefreshCcw className="h-4 w-4 text-muted-foreground" />
-                </button>
-              </div>
-            </div>
+      {/* Regenerate */}
+      <button
+        onClick={() => handleHumanize()}
+        disabled={!input.trim()}
+        className="p-1 hover:bg-muted rounded disabled:opacity-50"
+        title="Regenerate"
+      >
+        <RefreshCcw className="h-4 w-4 text-muted-foreground" />
+      </button>
+    </div>
+  </div>
 
-            <div className="h-[200px] overflow-hidden whitespace-pre-wrap text-sm leading-relaxed">
-              {loading && !output
-                ? "⏳ Processing..."
-                : output || "Output will appear here after processing."}
-            </div>
-          </div>
+  {/* Scrollable content */}
+  <div className="overflow-y-auto px-4 whitespace-pre-wrap text-sm leading-relaxed">
+    {loading && !output
+      ? "⏳ Processing..."
+      : output || "Output will appear here after processing."}
+  </div>
+</div>
+
         </motion.section>
       </motion.div>
 
