@@ -1,4 +1,3 @@
-// app/api/schedule-downgrade/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Stripe from "stripe";
@@ -35,28 +34,27 @@ export async function POST(req: Request) {
         { status: 404 }
       );
 
-    // 🧩 4️⃣ Get active Stripe subscription
+    // 🧩 4️⃣ Get the active subscription
     const subs = await stripe.subscriptions.list({
       customer: membership.stripe_customer_id,
       status: "active",
       limit: 1,
-      expand: ["data.items.data.price"], // ✅ Correct for Basil API
+      expand: ["data.items.data.price"], // ✅ Basil-compatible
     });
 
-    const sub = subs.data[0];
-    if (!sub)
+    const subList = subs.data[0];
+    if (!subList)
       return NextResponse.json(
         { error: "No active subscription found" },
         { status: 404 }
       );
+// 🧠 Retrieve full subscription to ensure period info (fix for Basil typings)
+const subResponse = await stripe.subscriptions.retrieve(subList.id);
+const sub = (subResponse as any).data ?? subResponse; // ✅ unwrap safely
 
-    const currentPriceId = sub.items.data[0]?.price?.id;
-    if (currentPriceId === targetPriceId)
-      return NextResponse.json({ message: "Already on this plan." });
-
-    // 🧩 5️⃣ Safely get current period timestamps
-    const currentPeriodEnd = (sub as any)?.current_period_end;
-    const currentPeriodStart = (sub as any)?.current_period_start;
+const currentPriceId = sub.items?.data?.[0]?.price?.id;
+const currentPeriodEnd = sub.current_period_end;
+const currentPeriodStart = sub.current_period_start;
 
     if (!currentPeriodEnd)
       return NextResponse.json(
@@ -64,7 +62,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
 
-    // 🧩 6️⃣ Create a schedule that starts at next renewal
+    // 🧩 5️⃣ Create a schedule that applies at the next billing date
     const schedule = await stripe.subscriptionSchedules.create({
       from_subscription: sub.id,
       start_date: currentPeriodEnd,
@@ -73,9 +71,9 @@ export async function POST(req: Request) {
           items: [{ price: targetPriceId, quantity: 1 }],
         },
       ],
-    } as any); // Cast to bypass Basil typings
+    } as any); // Cast for Basil typings
 
-    // 🧩 7️⃣ Update Supabase membership record
+    // 🧩 6️⃣ Update Supabase membership record
     await supabaseAdmin
       .from("membership")
       .update({
@@ -90,7 +88,7 @@ export async function POST(req: Request) {
       })
       .eq("user_id", userId);
 
-    // 🧩 8️⃣ Respond success
+    // 🧩 7️⃣ Respond success
     return NextResponse.json({
       success: true,
       message: `Downgrade to '${targetPlan}' scheduled at end of billing period.`,
