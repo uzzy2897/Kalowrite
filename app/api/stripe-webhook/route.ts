@@ -91,13 +91,14 @@ async function upsertMembership(args: {
       started_at: start,
       ends_at: end,
       active: sub.status === "active" || sub.status === "trialing",
+      updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" }
   );
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🚀 WEBHOOK HANDLER                                                        */
+/* 🚀 MAIN WEBHOOK HANDLER                                                   */
 /* -------------------------------------------------------------------------- */
 export async function POST(req: Request) {
   const sig = (await headers()).get("stripe-signature");
@@ -126,7 +127,6 @@ export async function POST(req: Request) {
     const userId = session.metadata?.userId;
     if (!userId) return new Response("Missing userId", { status: 400 });
 
-    // ---- SUBSCRIPTION ----
     if (session.mode === "subscription") {
       const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
       const price = items.data[0]?.price;
@@ -148,7 +148,6 @@ export async function POST(req: Request) {
       console.log(`🆕 Subscription created → ${plan.name} (${billingInterval}) for ${userId}`);
     }
 
-    // ---- ONE-TIME PAYMENT ----
     if (session.mode === "payment") {
       const words = parseInt(session.metadata?.words || "0", 10);
       await supabaseAdmin
@@ -174,7 +173,6 @@ export async function POST(req: Request) {
     const { start, end } = getPeriod(sub);
     const billingInterval = getBillingInterval(sub);
 
-    // Resolve userId
     let userId = "";
     try {
       const customer =
@@ -200,7 +198,6 @@ export async function POST(req: Request) {
     const { start, end } = getPeriod(sub);
     const billingInterval = getBillingInterval(sub);
 
-    // Resolve userId
     let userId = "";
     try {
       const customer =
@@ -217,14 +214,13 @@ export async function POST(req: Request) {
 
     const { data: membership } = await supabaseAdmin
       .from("membership")
-      .select("plan, scheduled_plan")
+      .select("plan, scheduled_plan, scheduled_plan_effective_at")
       .eq("user_id", userId)
       .maybeSingle();
 
     const oldPlan = membership?.plan ?? "free";
     const target = plan.name;
 
-    // Upgrade → immediate apply
     if (
       (oldPlan === "basic" && ["pro", "ultra"].includes(target)) ||
       (oldPlan === "pro" && target === "ultra")
@@ -232,9 +228,7 @@ export async function POST(req: Request) {
       await resetPlanAndBalance(userId, target, plan.quota);
       await upsertMembership({ userId, plan: target, billingInterval, start, end, sub });
       console.log(`⬆️ Upgrade applied: ${oldPlan} → ${target}`);
-    }
-    // Downgrade → schedule
-    else if (
+    } else if (
       (oldPlan === "ultra" && ["pro", "basic"].includes(target)) ||
       (oldPlan === "pro" && ["basic", "free"].includes(target)) ||
       (oldPlan === "basic" && target === "free")
@@ -250,10 +244,18 @@ export async function POST(req: Request) {
         scheduledAt: end,
       });
       console.log(`⏳ Downgrade scheduled: ${oldPlan} → ${target}`);
-    }
-    // Same plan → sync
-    else {
-      await upsertMembership({ userId, plan: target, billingInterval, start, end, sub });
+    } else {
+      // Preserve any scheduled downgrade if already exists
+      await upsertMembership({
+        userId,
+        plan: target,
+        billingInterval,
+        start,
+        end,
+        sub,
+        scheduledPlan: membership?.scheduled_plan ?? null,
+        scheduledAt: membership?.scheduled_plan_effective_at ?? null,
+      });
     }
   }
 
@@ -264,7 +266,6 @@ export async function POST(req: Request) {
     const invoice = event.data.object as Stripe.Invoice & { subscription?: string };
     const reason = invoice.billing_reason ?? "";
 
-    // Only handle subscription renewals
     if (!["subscription_cycle", "subscription_create"].includes(reason)) {
       return new Response("ok");
     }
@@ -322,6 +323,5 @@ export async function POST(req: Request) {
     }
   }
 
-  /* ------------------------------------------------------------------------ */
   return new Response("ok", { status: 200 });
 }
