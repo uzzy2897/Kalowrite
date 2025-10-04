@@ -75,22 +75,23 @@ export async function POST(req: Request) {
       },
     });
 
-    // 6️⃣ Update Supabase membership info
-    await supabaseAdmin
-      .from("membership")
-      .upsert(
-        {
-          user_id: userId,
-          scheduled_plan: targetPlan,
-          scheduled_plan_effective_at: new Date(
-            currentPeriodEnd * 1000
-          ).toISOString(),
-          started_at: new Date(currentPeriodStart * 1000).toISOString(),
-          ends_at: new Date(currentPeriodEnd * 1000).toISOString(),
-        },
-        { onConflict: "user_id" }
-      );
-
+    const { data: updateData, error: updateError } = await supabaseAdmin
+    .from("membership")
+    .update({
+      scheduled_plan: targetPlan,
+      scheduled_plan_effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
+      started_at: new Date(currentPeriodStart * 1000).toISOString(),
+      ends_at: new Date(currentPeriodEnd * 1000).toISOString(),
+    })
+    .eq("user_id", userId)
+    .select();
+  
+  if (updateError) {
+    console.error("❌ Membership update failed:", updateError);
+  } else {
+    console.log("✅ Membership updated successfully:", updateData);
+  }
+  
     // ✅ Done
     return NextResponse.json({
       success: true,
