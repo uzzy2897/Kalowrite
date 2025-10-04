@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     if (!targetPriceId)
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
 
-    // 🧩 3️⃣ Find active membership
+    // 🧩 3️⃣ Find active membership in Supabase
     const { data: membership, error: memErr } = await supabaseAdmin
       .from("membership")
       .select("stripe_customer_id, plan")
@@ -35,12 +35,12 @@ export async function POST(req: Request) {
         { status: 404 }
       );
 
-    // 🧩 4️⃣ Get active subscription
+    // 🧩 4️⃣ Get active Stripe subscription
     const subs = await stripe.subscriptions.list({
       customer: membership.stripe_customer_id,
       status: "active",
       limit: 1,
-      expand: ["data.items.price"],
+      expand: ["data.items.data.price"], // ✅ Correct for Basil API
     });
 
     const sub = subs.data[0];
@@ -50,11 +50,11 @@ export async function POST(req: Request) {
         { status: 404 }
       );
 
-    const currentPriceId = sub.items.data[0]?.price.id;
+    const currentPriceId = sub.items.data[0]?.price?.id;
     if (currentPriceId === targetPriceId)
       return NextResponse.json({ message: "Already on this plan." });
 
-    // 🧩 5️⃣ Safe access to billing cycle
+    // 🧩 5️⃣ Safely get current period timestamps
     const currentPeriodEnd = (sub as any)?.current_period_end;
     const currentPeriodStart = (sub as any)?.current_period_start;
 
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
 
-    // 🧩 6️⃣ Create a schedule that applies at next renewal
+    // 🧩 6️⃣ Create a schedule that starts at next renewal
     const schedule = await stripe.subscriptionSchedules.create({
       from_subscription: sub.id,
       start_date: currentPeriodEnd,
@@ -73,14 +73,16 @@ export async function POST(req: Request) {
           items: [{ price: targetPriceId, quantity: 1 }],
         },
       ],
-    } as any); // cast for Basil typing fix
+    } as any); // Cast to bypass Basil typings
 
     // 🧩 7️⃣ Update Supabase membership record
     await supabaseAdmin
       .from("membership")
       .update({
         scheduled_plan: targetPlan,
-        scheduled_plan_effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
+        scheduled_plan_effective_at: new Date(
+          currentPeriodEnd * 1000
+        ).toISOString(),
         started_at: currentPeriodStart
           ? new Date(currentPeriodStart * 1000).toISOString()
           : null,

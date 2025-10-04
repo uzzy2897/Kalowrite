@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 
 type Membership = {
   plan?: string;
+  billing_interval?: "monthly" | "yearly";
   scheduled_plan?: string | null;
   scheduled_plan_effective_at?: string | null;
 };
@@ -18,6 +19,7 @@ export default function PricingPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const currentPlan = membership?.plan ?? "free";
+  const currentBilling = membership?.billing_interval ?? "monthly";
   const scheduledPlan = membership?.scheduled_plan ?? null;
   const planOrder = ["free", "basic", "pro", "ultra"];
 
@@ -98,7 +100,6 @@ export default function PricingPage() {
     setLoadingPlan(null);
   };
 
-  // ✅ Plans config
   const plans = [
     {
       name: "Basic",
@@ -213,7 +214,8 @@ export default function PricingPage() {
         }}
       >
         {plans.map((plan) => {
-          const isCurrent = currentPlan === plan.slug;
+          const isCurrent =
+            currentPlan === plan.slug && currentBilling === billing;
           const isScheduled = scheduledPlan === plan.slug;
           const currentIndex = planOrder.indexOf(currentPlan);
           const targetIndex = planOrder.indexOf(plan.slug);
@@ -264,7 +266,7 @@ export default function PricingPage() {
                   disabled
                   className="mt-auto px-6 py-3 bg-accent text-muted-foreground rounded-md border cursor-not-allowed"
                 >
-                  Current Plan
+                  Current ({billing === "monthly" ? "Monthly" : "Yearly"})
                 </button>
               ) : isScheduled ? (
                 <button

@@ -7,7 +7,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-08-27.basil",
 });
 
-// ✅ Helpers
+/* -------------------------------------------------------------------------- */
+/* ✅ Helper utilities */
+/* -------------------------------------------------------------------------- */
+
+// Convert Stripe period timestamps → ISO
 function getPeriod(sub: Stripe.Subscription) {
   const start = (sub as any)?.current_period_start
     ? new Date((sub as any).current_period_start * 1000).toISOString()
@@ -18,6 +22,12 @@ function getPeriod(sub: Stripe.Subscription) {
   return { start, end };
 }
 
+// Extract billing interval (monthly / yearly)
+function getBillingInterval(sub: Stripe.Subscription) {
+  return sub.items.data[0]?.price?.recurring?.interval || "monthly";
+}
+
+// Reset plan balance on renewal
 async function resetPlanAndBalance(userId: string, planName: string, quota: number) {
   const { error } = await supabaseAdmin
     .from("user_balance")
@@ -31,6 +41,9 @@ async function resetPlanAndBalance(userId: string, planName: string, quota: numb
   else console.log(`✅ Balance reset → ${quota}, plan=${planName} for ${userId}`);
 }
 
+/* -------------------------------------------------------------------------- */
+/* ✅ Main webhook handler */
+/* -------------------------------------------------------------------------- */
 export async function POST(req: Request) {
   const sig = (await headers()).get("stripe-signature");
   if (!sig) return new Response("Missing signature", { status: 400 });
@@ -46,27 +59,29 @@ export async function POST(req: Request) {
 
   console.log("🔔 Stripe event:", event.type);
 
-  // --------------------------------------------------------------------
-  // 1️⃣ Checkout completed
-  // --------------------------------------------------------------------
+  /* -------------------------------------------------------------------------- */
+  /* 1️⃣ Checkout completed */
+  /* -------------------------------------------------------------------------- */
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const userId = session.metadata?.userId;
     if (!userId) return new Response("Missing userId", { status: 400 });
 
-    // 🟢 Subscription purchase
+    // 🟢 New subscription
     if (session.mode === "subscription") {
       const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
-      const plan = planFromPriceId(items.data[0]?.price?.id);
+      const price = items.data[0]?.price;
+      const plan = planFromPriceId(price?.id);
       if (!plan) return new Response("Unknown plan", { status: 400 });
 
-      // Retrieve full subscription to store period info
       const sub = await stripe.subscriptions.retrieve(session.subscription as string);
       const { start, end } = getPeriod(sub);
+      const billingInterval = getBillingInterval(sub);
 
       await supabaseAdmin.from("membership").upsert({
         user_id: userId,
         plan: plan.name,
+        billing_interval: billingInterval,
         scheduled_plan: null,
         scheduled_plan_effective_at: null,
         stripe_customer_id:
@@ -78,13 +93,12 @@ export async function POST(req: Request) {
       });
 
       await resetPlanAndBalance(userId, plan.name, plan.quota);
-      console.log(`🆕 Subscription created: ${plan.name} for ${userId}`);
+      console.log(`🆕 Subscription created: ${plan.name} (${billingInterval}) for ${userId}`);
     }
 
     // 💵 One-time top-up
     if (session.mode === "payment") {
       const words = parseInt(session.metadata?.words || "0", 10);
-
       await supabaseAdmin.from("topups").upsert(
         {
           user_id: userId,
@@ -93,19 +107,20 @@ export async function POST(req: Request) {
         },
         { onConflict: "stripe_payment_id" }
       );
-
       await supabaseAdmin.rpc("increment_balance", { uid: userId, amount: words });
       console.log(`✅ Top-up: +${words} words for ${userId}`);
     }
   }
 
-  // --------------------------------------------------------------------
-  // 2️⃣ Subscription updated (upgrade / downgrade)
-  // --------------------------------------------------------------------
+  /* -------------------------------------------------------------------------- */
+  /* 2️⃣ Subscription updated (upgrade / scheduled downgrade) */
+  /* -------------------------------------------------------------------------- */
   if (event.type === "customer.subscription.updated") {
     const sub = event.data.object as Stripe.Subscription;
     const { start, end } = getPeriod(sub);
+    const billingInterval = getBillingInterval(sub);
 
+    // Retrieve userId
     let userId = "";
     try {
       const customer =
@@ -115,7 +130,6 @@ export async function POST(req: Request) {
       // @ts-ignore
       userId = customer?.metadata?.userId || "";
     } catch {}
-
     if (!userId) return new Response("ok");
 
     const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
@@ -138,6 +152,7 @@ export async function POST(req: Request) {
       await supabaseAdmin.from("membership").upsert({
         user_id: userId,
         plan: plan.name,
+        billing_interval: billingInterval,
         scheduled_plan: null,
         scheduled_plan_effective_at: null,
         stripe_customer_id:
@@ -160,6 +175,7 @@ export async function POST(req: Request) {
       await supabaseAdmin.from("membership").upsert({
         user_id: userId,
         plan: oldPlan,
+        billing_interval: billingInterval,
         scheduled_plan: plan.name,
         scheduled_plan_effective_at: end,
         stripe_customer_id:
@@ -177,6 +193,7 @@ export async function POST(req: Request) {
       await supabaseAdmin.from("membership").upsert({
         user_id: userId,
         plan: plan.name,
+        billing_interval: billingInterval,
         scheduled_plan: null,
         scheduled_plan_effective_at: null,
         stripe_customer_id:
@@ -189,9 +206,9 @@ export async function POST(req: Request) {
     }
   }
 
-  // --------------------------------------------------------------------
-  // 3️⃣ Invoice paid (cycle renew)
-  // --------------------------------------------------------------------
+  /* -------------------------------------------------------------------------- */
+  /* 3️⃣ Invoice paid → new cycle / apply scheduled downgrade */
+  /* -------------------------------------------------------------------------- */
   if (event.type === "invoice.paid") {
     const invoice = event.data.object as Stripe.Invoice & { subscription?: string };
     if (invoice.billing_reason !== "subscription_cycle") return new Response("ok");
@@ -199,6 +216,7 @@ export async function POST(req: Request) {
     if (invoice.subscription) {
       const sub = await stripe.subscriptions.retrieve(invoice.subscription);
       const { start, end } = getPeriod(sub);
+      const billingInterval = getBillingInterval(sub);
 
       let userId = "";
       try {
@@ -209,7 +227,6 @@ export async function POST(req: Request) {
         // @ts-ignore
         userId = customer?.metadata?.userId || "";
       } catch {}
-
       if (!userId) return new Response("ok");
 
       const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
@@ -229,6 +246,7 @@ export async function POST(req: Request) {
       await supabaseAdmin.from("membership").upsert({
         user_id: userId,
         plan: finalPlan,
+        billing_interval: billingInterval,
         scheduled_plan: null,
         scheduled_plan_effective_at: null,
         stripe_customer_id:
@@ -239,7 +257,7 @@ export async function POST(req: Request) {
         active: sub.status === "active" || sub.status === "trialing",
       });
 
-      console.log(`🗓️ Cycle refill: ${finalPlan} (${quota} words) for ${userId}`);
+      console.log(`🗓️ Cycle refill → ${finalPlan} (${billingInterval}) for ${userId}`);
     }
   }
 
