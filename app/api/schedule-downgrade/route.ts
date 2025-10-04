@@ -12,57 +12,67 @@ export async function POST(req: Request) {
   try {
     // 🧩 1️⃣ Clerk Auth
     const { userId } = await auth();
-    if (!userId)
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    // 🧩 2️⃣ Parse input
+    // 🧩 2️⃣ Parse body
     const { targetPlan, billing = "monthly" } = await req.json();
     const targetPriceId = getPriceId(targetPlan, billing);
-    if (!targetPriceId)
+    if (!targetPriceId) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+    }
 
-    // 🧩 3️⃣ Find active membership in Supabase
+    // 🧩 3️⃣ Fetch active membership
     const { data: membership, error: memErr } = await supabaseAdmin
       .from("membership")
       .select("stripe_customer_id, plan")
       .eq("user_id", userId)
       .single();
 
-    if (memErr || !membership?.stripe_customer_id)
+    if (memErr || !membership?.stripe_customer_id) {
       return NextResponse.json(
         { error: "No active membership found" },
         { status: 404 }
       );
+    }
 
-    // 🧩 4️⃣ Get the active subscription
+    // 🧩 4️⃣ Retrieve active Stripe subscription
     const subs = await stripe.subscriptions.list({
       customer: membership.stripe_customer_id,
       status: "active",
       limit: 1,
-      expand: ["data.items.data.price"], // ✅ Basil-compatible
+      expand: ["data.items.data.price"], // ✅ Correct for Basil API
     });
 
     const subList = subs.data[0];
-    if (!subList)
+    if (!subList) {
       return NextResponse.json(
         { error: "No active subscription found" },
         { status: 404 }
       );
-// 🧠 Retrieve full subscription to ensure period info (fix for Basil typings)
-const subResponse = await stripe.subscriptions.retrieve(subList.id);
-const sub = (subResponse as any).data ?? subResponse; // ✅ unwrap safely
+    }
 
-const currentPriceId = sub.items?.data?.[0]?.price?.id;
-const currentPeriodEnd = sub.current_period_end;
-const currentPeriodStart = sub.current_period_start;
+    // ✅ Retrieve full subscription to access current_period_end/start
+    const subResponse = await stripe.subscriptions.retrieve(subList.id);
+    const sub = (subResponse as any).data ?? subResponse;
 
-    if (!currentPeriodEnd)
+    const currentPriceId = sub.items?.data?.[0]?.price?.id;
+    if (currentPriceId === targetPriceId) {
+      return NextResponse.json({ message: "Already on this plan." });
+    }
+
+    const currentPeriodEnd: number | undefined = sub.current_period_end;
+    const currentPeriodStart: number | undefined = sub.current_period_start;
+
+    if (!currentPeriodEnd) {
       return NextResponse.json(
         { error: "Subscription missing period info" },
         { status: 400 }
       );
+    }
 
-    // 🧩 5️⃣ Create a schedule that applies at the next billing date
+    // 🧩 5️⃣ Schedule downgrade at next renewal
     const schedule = await stripe.subscriptionSchedules.create({
       from_subscription: sub.id,
       start_date: currentPeriodEnd,
@@ -88,10 +98,10 @@ const currentPeriodStart = sub.current_period_start;
       })
       .eq("user_id", userId);
 
-    // 🧩 7️⃣ Respond success
+    // 🧩 7️⃣ Return success response
     return NextResponse.json({
       success: true,
-      message: `Downgrade to '${targetPlan}' scheduled at end of billing period.`,
+      message: `Downgrade to '${targetPlan}' scheduled at the end of the current billing period.`,
       scheduled_plan: targetPlan,
       effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
       schedule_id: schedule.id,
