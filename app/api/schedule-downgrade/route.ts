@@ -10,80 +10,87 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: Request) {
   try {
-    // 🧩 1️⃣ Clerk Auth
+    // 1️⃣ Clerk Auth
     const { userId } = await auth();
-    if (!userId) {
+    if (!userId)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
-    // 🧩 2️⃣ Parse body
+    // 2️⃣ Parse body
     const { targetPlan, billing = "monthly" } = await req.json();
     const targetPriceId = getPriceId(targetPlan, billing);
-    if (!targetPriceId) {
+    if (!targetPriceId)
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
-    }
 
-    // 🧩 3️⃣ Fetch active membership
+    // 3️⃣ Fetch membership
     const { data: membership, error: memErr } = await supabaseAdmin
       .from("membership")
       .select("stripe_customer_id, plan")
       .eq("user_id", userId)
       .single();
 
-    if (memErr || !membership?.stripe_customer_id) {
+    if (memErr || !membership?.stripe_customer_id)
       return NextResponse.json(
         { error: "No active membership found" },
         { status: 404 }
       );
-    }
 
-    // 🧩 4️⃣ Retrieve active Stripe subscription
+    // 4️⃣ Retrieve current subscription
     const subs = await stripe.subscriptions.list({
       customer: membership.stripe_customer_id,
       status: "active",
       limit: 1,
-      expand: ["data.items.data.price"], // ✅ Correct for Basil API
     });
 
-    const subList = subs.data[0];
-    if (!subList) {
+    const subSummary = subs.data[0];
+    if (!subSummary)
       return NextResponse.json(
         { error: "No active subscription found" },
         { status: 404 }
       );
-    }
 
-    // ✅ Retrieve full subscription to access current_period_end/start
-    const subResponse = await stripe.subscriptions.retrieve(subList.id);
-    const sub = (subResponse as any).data ?? subResponse;
+    // ✅ Unwrap the Basil response
+    const raw = await stripe.subscriptions.retrieve(subSummary.id, {
+      expand: ["items.data.price"],
+    });
+
+    // ⚙️ Fix: cast to include hidden fields
+    type StripeSubWithPeriod = Stripe.Subscription & {
+      current_period_start?: number;
+      current_period_end?: number;
+      trial_start?: number;
+      trial_end?: number;
+    };
+
+    const sub = ("data" in raw ? (raw as any).data : raw) as StripeSubWithPeriod;
 
     const currentPriceId = sub.items?.data?.[0]?.price?.id;
-    if (currentPriceId === targetPriceId) {
-      return NextResponse.json({ message: "Already on this plan." });
-    }
 
-    const currentPeriodEnd: number | undefined = sub.current_period_end;
-    const currentPeriodStart: number | undefined = sub.current_period_start;
+    // 5️⃣ Safely access period info
+    const currentPeriodEnd =
+      sub.current_period_end ??
+      (sub.status === "trialing" ? sub.trial_end ?? null : null);
 
-    if (!currentPeriodEnd) {
+    const currentPeriodStart =
+      sub.current_period_start ??
+      (sub.status === "trialing" ? sub.trial_start ?? null : null);
+
+    if (!currentPeriodEnd)
       return NextResponse.json(
         { error: "Subscription missing period info" },
         { status: 400 }
       );
-    }
 
-    // 🧩 5️⃣ Schedule downgrade at next renewal
+    if (currentPriceId === targetPriceId)
+      return NextResponse.json({ message: "Already on this plan." });
+
+    // 6️⃣ Schedule downgrade
     const schedule = await stripe.subscriptionSchedules.create({
       from_subscription: sub.id,
       start_date: currentPeriodEnd,
-      phases: [
-        {
-          items: [{ price: targetPriceId, quantity: 1 }],
-        },
-      ],
-    } as any); // Cast for Basil typings
+      phases: [{ items: [{ price: targetPriceId, quantity: 1 }] }],
+    });
 
-    // 🧩 6️⃣ Update Supabase membership record
+    // 7️⃣ Update Supabase
     await supabaseAdmin
       .from("membership")
       .update({
@@ -98,11 +105,10 @@ export async function POST(req: Request) {
       })
       .eq("user_id", userId);
 
-    // 🧩 7️⃣ Return success response
+    // ✅ Done
     return NextResponse.json({
       success: true,
-      message: `Downgrade to '${targetPlan}' scheduled at the end of the current billing period.`,
-      scheduled_plan: targetPlan,
+      message: `Downgrade to '${targetPlan}' scheduled for the end of this billing period.`,
       effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
       schedule_id: schedule.id,
     });
