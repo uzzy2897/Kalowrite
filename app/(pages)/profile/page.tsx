@@ -2,12 +2,17 @@
 
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function ProfilePage() {
   const { user } = useUser();
+  const router = useRouter();
+
   const [membership, setMembership] = useState("free");
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const quota: Record<string, number> = {
     free: 500,
@@ -39,9 +44,23 @@ export default function ProfilePage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm("Are you sure you want to delete your account?")) return;
-    await fetch("/api/delete-account", { method: "POST" });
-    alert("Account deleted");
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/delete-account", { method: "POST" });
+      if (res.ok) {
+        setShowConfirm(false);
+        alert("Account deleted successfully.");
+        router.push("/"); // ✅ Redirect to home
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete account.");
+      }
+    } catch (err) {
+      console.error("❌ Delete account error:", err);
+      alert("Server error. Try again later.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const limit = quota[membership] ?? 500;
@@ -61,8 +80,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-8">
-      {/* Header with avatar */}
+    <div className="max-w-3xl mx-auto p-6 space-y-8 relative">
+      {/* Header */}
       <div className="flex flex-col items-center space-y-3">
         <img
           src={user?.imageUrl || "https://placehold.co/100"}
@@ -80,7 +99,7 @@ export default function ProfilePage() {
         </span>
       </div>
 
-      {/* Plan + Usage */}
+      {/* Usage */}
       <div className="border rounded-lg p-6 bg-card space-y-3">
         <h2 className="text-sm font-medium">Usage</h2>
         <p className="text-sm">
@@ -110,12 +129,47 @@ export default function ProfilePage() {
         </SignOutButton>
 
         <button
-          onClick={handleDeleteAccount}
+          onClick={() => setShowConfirm(true)}
           className="w-full text-sm border rounded px-3 py-2 hover:bg-muted text-red-500"
         >
           Delete Account
         </button>
       </div>
+
+      {/* 🧩 Confirmation Overlay */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-card border rounded-lg p-6 shadow-lg w-[90%] max-w-sm space-y-4">
+            <h2 className="text-lg font-semibold text-center">
+              Confirm Account Deletion
+            </h2>
+            <p className="text-sm text-muted-foreground text-center">
+              This action cannot be undone. All your data will be permanently
+              deleted.
+            </p>
+            <div className="flex gap-3 justify-center mt-4">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 text-sm border rounded hover:bg-muted"
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className={`px-4 py-2 text-sm rounded text-white ${
+                  deleting
+                    ? "bg-red-400 cursor-not-allowed"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {deleting ? "Deleting..." : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
