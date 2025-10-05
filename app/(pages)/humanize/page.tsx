@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
 import { usePathname, useRouter } from "next/navigation";
+import WordLimitEditor from "@/components/WordInput";
 
 export default function Humanizepagee() {
   const { isSignedIn, isLoaded } = useUser();
@@ -281,13 +282,11 @@ export default function Humanizepagee() {
         >
           <div className="bg-card p-4 h-96 space-y-4 border rounded-xl relative">
             <h2>Your Content</h2>
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Paste your AI text here..."
-              className="h-[200px] resize-none pb-16"
-            />
-
+            <WordLimitEditor
+  wordLimit={quota} // same logic as before
+  value={input}
+  onChange={setInput}
+/>
             {/* Word count */}
             <div className="flex justify-between items-center mt-2 text-sm">
               <p className="text-muted-foreground">
