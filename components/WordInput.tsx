@@ -60,12 +60,14 @@ export default function WordLimitEditor({
         const start = textBeforeLimit.length + 1;
         const end = text.length;
 
+        const currentPos = editor.state.selection.from; // Save current cursor
         editor
           .chain()
           .setTextSelection({ from: start, to: end })
           .setHighlight()
-          .setTextSelection(0)
+          .setTextSelection(currentPos) // Restore where user was typing
           .run();
+        
       }
     };
 
