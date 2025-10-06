@@ -3,6 +3,7 @@
 import { CircleCheck, Loader2, XCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useAuth } from "@clerk/nextjs";
 
 type Membership = {
   plan?: string;
@@ -18,12 +19,14 @@ export default function PricingPage() {
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const { isSignedIn } = useAuth();
+
   const currentPlan = membership?.plan ?? "free";
   const currentBilling = membership?.billing_interval ?? "monthly";
   const scheduledPlan = membership?.scheduled_plan ?? null;
   const planOrder = ["free", "basic", "pro", "ultra"];
 
-  // ✅ Auto-clear messages after 5s
+  // ✅ Auto-clear messages after 5 seconds
   useEffect(() => {
     if (message) {
       const t = setTimeout(() => setMessage(null), 5000);
@@ -31,7 +34,7 @@ export default function PricingPage() {
     }
   }, [message]);
 
-  // ✅ Fetch current membership
+  // ✅ Fetch current membership from Supabase
   useEffect(() => {
     const fetchMembership = async () => {
       try {
@@ -52,6 +55,12 @@ export default function PricingPage() {
   const handleUpgrade = async (plan: string) => {
     setMessage(null);
     setLoadingPlan(plan);
+
+    if (!isSignedIn) {
+      window.location.href = `/auth/sign-in?redirect_url=${encodeURIComponent("/pricing")}`;
+      return;
+    }
+
     try {
       const res = await fetch("/api/create-subscription-session", {
         method: "POST",
@@ -67,36 +76,29 @@ export default function PricingPage() {
     setLoadingPlan(null);
   };
 
-  // ✅ Downgrade via API
-  const handleDowngrade = async (plan: string) => {
+  // ✅ Downgrade = Manage plan in Stripe Portal
+  const handleDowngrade = async () => {
     setMessage(null);
-    setLoadingPlan(plan);
+    setLoadingPlan("portal");
+
+    if (!isSignedIn) {
+      window.location.href = `/auth/sign-in?redirect_url=${encodeURIComponent("/pricing")}`;
+      return;
+    }
+
     try {
-      const res = await fetch("/api/schedule-downgrade", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetPlan: plan, billing }),
-      });
+      const res = await fetch("/api/create-portal-session", { method: "POST" });
       const data = await res.json();
 
-      if (data.success) {
-        setMembership((prev) => ({
-          ...prev,
-          scheduled_plan: plan,
-          scheduled_plan_effective_at: data.effective_at,
-        }));
-        setMessage({
-          type: "success",
-          text: `Downgrade to ${plan} scheduled for ${new Date(
-            data.effective_at
-          ).toLocaleDateString()}.`,
-        });
+      if (data.url) {
+        window.location.href = data.url; // 🚀 Redirect to Stripe Customer Portal
       } else {
-        setMessage({ type: "error", text: data.error || "Downgrade failed." });
+        setMessage({ type: "error", text: data.error || "Failed to open portal." });
       }
     } catch {
-      setMessage({ type: "error", text: "Error scheduling downgrade." });
+      setMessage({ type: "error", text: "Error creating portal session." });
     }
+
     setLoadingPlan(null);
   };
 
@@ -145,18 +147,12 @@ export default function PricingPage() {
   return (
     <main className="max-w-7xl mx-auto py-16 px-6 text-center">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <h1 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h1>
         <p className="text-muted-foreground mb-10">
           Get started for free and upgrade anytime. Cancel anytime, no questions asked.
         </p>
-        <p className="text-sm text-muted-foreground mb-3">
-          Switch to yearly and save 50%
-        </p>
+        <p className="text-sm text-muted-foreground mb-3">Switch to yearly and save 50%</p>
       </motion.div>
 
       {/* Inline Alert */}
@@ -168,11 +164,7 @@ export default function PricingPage() {
               : "bg-red-50 text-red-700 border border-red-200"
           }`}
         >
-          {message.type === "success" ? (
-            <CircleCheck className="w-5 h-5 shrink-0" />
-          ) : (
-            <XCircle className="w-5 h-5 shrink-0" />
-          )}
+          {message.type === "success" ? <CircleCheck className="w-5 h-5 shrink-0" /> : <XCircle className="w-5 h-5 shrink-0" />}
           <span>{message.text}</span>
         </div>
       )}
@@ -183,9 +175,7 @@ export default function PricingPage() {
           <button
             onClick={() => setBilling("monthly")}
             className={`px-6 py-2 text-sm font-medium transition-colors ${
-              billing === "monthly"
-                ? "bg-emerald-600 text-white rounded-full"
-                : "text-muted-foreground"
+              billing === "monthly" ? "bg-emerald-600 text-white rounded-full" : "text-muted-foreground"
             }`}
           >
             Monthly
@@ -193,9 +183,7 @@ export default function PricingPage() {
           <button
             onClick={() => setBilling("yearly")}
             className={`px-6 py-2 text-sm font-medium transition-colors ${
-              billing === "yearly"
-                ? "bg-emerald-600 text-white rounded-full"
-                : "text-muted-foreground"
+              billing === "yearly" ? "bg-emerald-600 text-white rounded-full" : "text-muted-foreground"
             }`}
           >
             Yearly
@@ -214,14 +202,12 @@ export default function PricingPage() {
         }}
       >
         {plans.map((plan) => {
-          const isCurrent =
-            currentPlan === plan.slug && currentBilling === billing;
+          const isCurrent = currentPlan === plan.slug && currentBilling === billing;
           const isScheduled = scheduledPlan === plan.slug;
           const currentIndex = planOrder.indexOf(currentPlan);
           const targetIndex = planOrder.indexOf(plan.slug);
           const isUpgrade = targetIndex > currentIndex;
-          const priceText =
-            billing === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
+          const priceText = billing === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
 
           return (
             <motion.div
@@ -240,9 +226,7 @@ export default function PricingPage() {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold">{plan.name}</h2>
                 {plan.slug === "pro" && (
-                  <span className="bg-emerald-600 text-white text-xs px-3 py-1 rounded-full">
-                    Popular
-                  </span>
+                  <span className="bg-emerald-600 text-white text-xs px-3 py-1 rounded-full">Popular</span>
                 )}
               </div>
 
@@ -277,22 +261,20 @@ export default function PricingPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() =>
-                    isUpgrade ? handleUpgrade(plan.slug) : handleDowngrade(plan.slug)
-                  }
-                  disabled={loadingPlan === plan.slug}
+                  onClick={() => (isUpgrade ? handleUpgrade(plan.slug) : handleDowngrade())}
+                  disabled={loadingPlan === plan.slug || loadingPlan === "portal"}
                   className={`mt-auto px-6 py-3 rounded-md transition-colors ${
                     isUpgrade
                       ? "bg-emerald-600 text-white hover:bg-emerald-700"
                       : "bg-muted text-foreground hover:bg-muted/80"
                   } disabled:opacity-50`}
                 >
-                  {loadingPlan === plan.slug ? (
+                  {loadingPlan === plan.slug || loadingPlan === "portal" ? (
                     <Loader2 className="animate-spin mx-auto" />
                   ) : isUpgrade ? (
                     "Upgrade"
                   ) : (
-                    "Downgrade"
+                    "Manage in Portal"
                   )}
                 </button>
               )}
@@ -305,9 +287,7 @@ export default function PricingPage() {
       {scheduledPlan && (
         <p className="text-sm mt-10 text-muted-foreground">
           Downgrade to <b>{scheduledPlan}</b> effective on{" "}
-          {new Date(
-            membership?.scheduled_plan_effective_at ?? ""
-          ).toLocaleDateString()}
+          {new Date(membership?.scheduled_plan_effective_at ?? "").toLocaleDateString()}
         </p>
       )}
     </main>
