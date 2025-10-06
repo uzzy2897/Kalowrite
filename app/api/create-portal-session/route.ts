@@ -10,9 +10,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST() {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId)
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // 🔑 Look up the Stripe customer ID from your DB
+  // 🔑 Fetch Stripe customer from Supabase
   const { data, error } = await supabaseAdmin
     .from("membership")
     .select("stripe_customer_id")
@@ -20,13 +21,17 @@ export async function POST() {
     .single();
 
   if (error || !data?.stripe_customer_id) {
-    return NextResponse.json({ error: "No Stripe customer found" }, { status: 404 });
+    console.error("❌ No Stripe customer found:", error);
+    return NextResponse.json(
+      { error: "No Stripe customer found" },
+      { status: 404 }
+    );
   }
 
-  // 🎟 Create the portal session
+  // 🎟 Create a customer portal session
   const session = await stripe.billingPortal.sessions.create({
     customer: data.stripe_customer_id,
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/profile`, // where Stripe sends them back
+    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`, // ✅ redirect here after managing plan
   });
 
   return NextResponse.json({ url: session.url });
