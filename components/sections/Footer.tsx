@@ -12,9 +12,9 @@ export default function Footer() {
   }
 
   return (
-    <footer className="w-full border-t px-4 lg:px-16 mt-24">
+    <footer className="w-full border-t  mt-24">
       {/* Footer main section */}
-      <div className="container mx-auto py-8 max-w-7xl grid gap-6 md:grid-cols-3 text-sm text-muted-foreground">
+      <div className="container px-4 mx-auto py-8 max-w-7xl grid gap-6 md:grid-cols-3 text-sm text-muted-foreground">
         <div className="border-r pr-4">
           <img
             src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
@@ -57,12 +57,7 @@ export default function Footer() {
               <Link href="/terms" className="hover:text-primary">
                 Terms of Service
               </Link>
-              <Link
-          href="/legal"
-          className="underline ml-2 underline-offset-2 hover:text-primary transition-colors"
-        >
-          Read more
-        </Link>
+         
             </li>
           </ul>
         </div>
@@ -71,6 +66,12 @@ export default function Footer() {
       {/* Disclaimer banner */}
       <div className="bg-muted/40 text-center py-3 px-4 text-sm text-muted-foreground">
         KaloWrite is not a tool for academic dishonesty or cheating.{" "}
+        <Link
+          href="/ethical-use"
+          className="underline ml-2 underline-offset-2 hover:text-primary transition-colors"
+        >
+          Read more
+        </Link>
        
         .
       </div>
