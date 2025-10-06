@@ -274,7 +274,7 @@ export default function PricingPage() {
                   ) : isUpgrade ? (
                     "Upgrade"
                   ) : (
-                    "Manage in Portal"
+                    "Downgrade"
                   )}
                 </button>
               )}
