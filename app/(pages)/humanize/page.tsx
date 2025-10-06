@@ -127,37 +127,37 @@ export default function Humanizepagee() {
     }
   }, [isLoaded, isSignedIn, pathname, router]);
 
-  // ✅ Handle humanize
-  const handleHumanize = async () => {
-    if (!input.trim()) return;
-    if (tooShort || exceeded) return;
+// ✅ Handle humanize with Gemini API
+const handleHumanize = async () => {
+  if (!input.trim()) return;
+  if (tooShort || exceeded) return;
 
-    setLoading(true);
-    setError("");
-    setOutput("");
+  setLoading(true);
+  setError("");
+  setOutput("");
 
-    try {
-      const res = await fetch("/api/humanize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: input }),
-      });
+  try {
+    const res = await fetch("/api/gemini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: input }), // 🔁 match Gemini route param
+    });
 
-      const data = await res.json();
+    const data = await res.text(); // ✅ plain text response (faster)
 
-      if (!res.ok) {
-        setError(data.error || "Something went wrong");
-      } else {
-        setOutput(data.result);
-        await fetchBalance();
-        fetchHistory();
-      }
-    } catch {
-      setError("Request failed. Please try again.");
+    if (!res.ok) {
+      setError(data || "Something went wrong");
+    } else {
+      setOutput(data);
+      await fetchBalance();
+      fetchHistory();
     }
+  } catch {
+    setError("Request failed. Please try again.");
+  }
 
-    setLoading(false);
-  };
+  setLoading(false);
+};
 
   const hasBalance = balance !== null && balance > 0;
 

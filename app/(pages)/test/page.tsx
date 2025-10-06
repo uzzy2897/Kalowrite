@@ -1,95 +1,92 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Highlight from "@tiptap/extension-highlight";
-import { useEffect } from "react";
+import { useState } from "react";
 
-// 🧩 Custom Highlight extension: removes yellow background
-const CustomHighlight = Highlight.extend({
-  addAttributes() {
-    return {
-      color: {
-        default: null,
-        parseHTML: () => null,
-        renderHTML: () => ({
-          class: "text-muted-foreground bg-transparent",
-          style: "",
-        }),
-      },
-    };
-  },
-}).configure({
-  multicolor: false,
-});
+export default function HomePage() {
+  const [text, setText] = useState("");
+  const [output, setOutput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-export default function Page() {
-  const wordLimit = 50;
+  const handleHumanize = async () => {
+    if (!text.trim()) {
+      setError("Please enter some text first.");
+      return;
+    }
 
-  const editor = useEditor({
-    extensions: [StarterKit, CustomHighlight],
-    immediatelyRender: false,
-    content: `
-      <p>
-    
-      </p>
-    `,
-  });
+    setLoading(true);
+    setError("");
+    setOutput("");
 
-  useEffect(() => {
-    if (!editor) return;
+    try {
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
 
-    const updateHighlight = () => {
-      const text = editor.getText();
-      const words = text.trim().split(/\s+/);
-      const wordCount = words.length;
-
-      // Remove all previous highlights
-      editor.chain().unsetHighlight().run();
-
-      if (wordCount > wordLimit) {
-        const textBeforeLimit = words.slice(0, wordLimit).join(" ");
-        const start = textBeforeLimit.length + 1;
-        const end = text.length;
-
-        // Highlight exceeded words with text-muted-foreground class
-        editor
-          .chain()
-          .setTextSelection({ from: start, to: end })
-          .setHighlight()
-          .setTextSelection(0)
-          .run();
+      if (!res.body) {
+        setError("No stream returned.");
+        setLoading(false);
+        return;
       }
-    };
 
-    updateHighlight();
-    editor.on("update", updateHighlight);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
 
-    // ✅ Type-safe cleanup (return void)
-    return () => {
-      editor.off("update", updateHighlight);
-    };
-  }, [editor]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-  if (!editor) return null;
+        const chunk = decoder.decode(value);
+        fullText += chunk;
+        setOutput((prev) => prev + chunk);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Network or stream error.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-8 transition-colors">
-      <h1 className="text-2xl font-semibold mb-4">🧠 Word Limit Demo</h1>
+    <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-gradient-to-b from-white to-gray-50">
+      <h1 className="text-3xl font-bold mb-6 text-center text-teal-800">
+        Gemini 2.5 Flash Text Humanizer (Streaming)
+      </h1>
 
-      <div className="border rounded-md p-4 bg-card max-w-3xl shadow-sm">
-        <EditorContent editor={editor} />
-      </div>
+      <textarea
+        className="w-full max-w-2xl p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 mb-4 text-gray-800"
+        rows={7}
+        placeholder="Paste or write text to humanize..."
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
 
-      <p
-        className={`mt-2 text-sm ${
-          editor.getText().trim().split(/\s+/).length > wordLimit
-            ? "text-destructive"
-            : "text-muted-foreground "
+      <button
+        onClick={handleHumanize}
+        disabled={loading}
+        className={`px-6 py-2 rounded-md text-white font-semibold transition ${
+          loading
+            ? "bg-gray-400 cursor-not-allowed"
+            : "bg-teal-700 hover:bg-teal-800"
         }`}
       >
-        {editor.getText().trim().split(/\s+/).length}/{wordLimit} words
-      </p>
+        {loading ? "Streaming..." : "Humanize Text"}
+      </button>
+
+      {error && <p className="text-red-600 mt-4">{error}</p>}
+
+      {output && (
+        <div className="mt-6 w-full max-w-2xl bg-gray-100 border border-gray-300 p-4 rounded-lg shadow-sm">
+          <h2 className="font-semibold mb-2 text-gray-700">Result:</h2>
+          <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+            {output}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
