@@ -218,6 +218,30 @@ export async function POST(req: Request) {
     const oldPlan = membership?.plan ?? "free";
     const target = plan.name;
 
+    if (sub.pending_update) {
+      const pending: any = sub.pending_update; // 👈 bypass narrow type
+      const newPrice = pending.items?.[0]?.price?.id;
+      const scheduledPlan = planFromPriceId(newPrice)?.name || target;
+      const effectiveAt = pending.effective_at
+        ? new Date(pending.effective_at * 1000).toISOString()
+        : end; // fallback to current period end
+    
+      await upsertMembership({
+        userId,
+        plan: oldPlan,
+        billingInterval,
+        start,
+        end,
+        sub,
+        scheduledPlan,
+        scheduledAt: effectiveAt,
+      });
+
+      console.log(`⏳ Downgrade scheduled via Stripe Portal: ${oldPlan} → ${scheduledPlan}`);
+      return new Response("ok");
+    }
+
+    // 🧩 Handle normal upgrade
     if (
       (oldPlan === "basic" && ["pro", "ultra"].includes(target)) ||
       (oldPlan === "pro" && target === "ultra")
@@ -225,7 +249,9 @@ export async function POST(req: Request) {
       await resetPlanAndBalance(userId, target, plan.quota);
       await upsertMembership({ userId, plan: target, billingInterval, start, end, sub });
       console.log(`⬆️ Upgrade applied: ${oldPlan} → ${target}`);
-    } else if (
+    }
+    // 🧩 Handle scheduled downgrade (non-portal flow)
+    else if (
       (oldPlan === "ultra" && ["pro", "basic"].includes(target)) ||
       (oldPlan === "pro" && ["basic", "free"].includes(target)) ||
       (oldPlan === "basic" && target === "free")
