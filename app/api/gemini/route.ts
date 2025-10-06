@@ -9,7 +9,12 @@ export async function POST(req: Request) {
     }
 
     const model = "models/gemini-2.5-flash-lite";
-    const GEMINI_API_KEY = "AIzaSyA33UissxYCdMNAJPdYNFw4DFTlMMmSrtM";
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // ✅ from .env.local
+
+    if (!GEMINI_API_KEY) {
+      console.error("Missing GEMINI_API_KEY in environment");
+      return new NextResponse("Server misconfigured", { status: 500 });
+    }
 
     const prompt = `
 You are the world's best human writer.
