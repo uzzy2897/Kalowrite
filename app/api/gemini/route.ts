@@ -81,21 +81,26 @@ ${content}
       words_to_deduct: wordCount,
     });
 
-    // 6️⃣ Save history (optional)
-    await supabaseAdmin.from("history").insert({
-      user_id: userId,
-      input_text: content,
-      output_text: output,
-      word_count: wordCount,
-    });
+   // ✅ 4️⃣ Save history safely
+   const { error: historyErr } = await supabaseAdmin
+   .from("history")
+   .insert({
+     user_id: userId,
+     input_text: content,
+     output_text: output,
+     word_count: wordCount,
+   })
+   .select()
+   .single();
 
-    // 7️⃣ Return output
-    return new NextResponse(output, {
-      status: 200,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
-  } catch (err) {
-    console.error("❌ Gemini error:", err);
-    return new NextResponse("Internal Server Error", { status: 500 });
-  }
+ if (historyErr) console.error("❌ Failed to insert history:", historyErr.message);
+
+ return new NextResponse(output, {
+   status: 200,
+   headers: { "Content-Type": "text/plain; charset=utf-8" },
+ });
+} catch (err) {
+ console.error("❌ Gemini error:", err);
+ return new NextResponse("Internal Server Error", { status: 500 });
+}
 }
