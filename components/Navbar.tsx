@@ -129,7 +129,7 @@ export default function Navbar() {
         {/* 💎 Show this only for pro or ultra plans */}
         {(plan === "pro" || plan === "ultra") && (
           <Link
-            href="/top-up"
+            href="/topup"
             onClick={() => setIsDropdownOpen(false)}
             className="block px-3 py-2 text-center text-white border   font-semibold bg-card hover:bg-primary/20 transition rounded-md mx-3 my-2"
           >
