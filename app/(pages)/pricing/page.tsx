@@ -285,7 +285,7 @@ export default function PricingPage() {
                   disabled={loadingAction === "portal"}
                   className="mt-auto px-6 py-3 bg-muted text-foreground hover:bg-muted/80 rounded-md transition-colors disabled:opacity-50"
                 >
-                  {loadingAction === "portal" ? <Loader2 className="animate-spin mx-auto" /> : isUpgrade ? "Upgrade" : "Manage Plan"}
+                  {loadingAction === "portal" ? <Loader2 className="animate-spin mx-auto" /> : isUpgrade ? "Upgrade" : "Downgrade"}
                 </button>
               )}
             </motion.div>
