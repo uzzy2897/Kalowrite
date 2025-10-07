@@ -42,14 +42,14 @@ export async function POST(req: Request) {
     }
 
     /* -------------------------------------------------------------------------- */
-    /* 4️⃣ Call Gemini API                                                      */
+    /* 4️⃣ Call Gemini 1.5 Pro (AI Studio API)                                  */
     /* -------------------------------------------------------------------------- */
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) {
       return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
     }
 
-    const model = "models/gemini-2.5-pro"; // ✅ Stable model name
+    const model = "models/gemini-1.5-pro-latest"; // ✅ use this one with AI Studio key
 
     const prompt = `
 You are the world's best human writer.
@@ -61,21 +61,18 @@ Text:
 ${content}
 `;
 
-    // ✅ Stay within maxTemperature=2
     const generationConfig = {
-      temperature: 1.5,
+      temperature: 1.0,
       topP: 0.9,
       topK: 64,
       maxOutputTokens: 32768,
     };
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-        },
+        headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig,
@@ -84,29 +81,22 @@ ${content}
     );
 
     /* -------------------------------------------------------------------------- */
-    /* 5️⃣ Safely Parse Gemini Response                                          */
+    /* 5️⃣ Parse Gemini Response                                                */
     /* -------------------------------------------------------------------------- */
     const rawText = await response.text();
-    let data: any = null;
-
+    let data: any;
     try {
       data = JSON.parse(rawText);
-    } catch (err) {
+    } catch {
       console.error("⚠️ Gemini returned non-JSON output:", rawText.slice(0, 300));
       return NextResponse.json(
-        {
-          error: "Gemini API returned a non-JSON response",
-          detail: rawText.slice(0, 500),
-        },
+        { error: "Gemini returned invalid response", detail: rawText.slice(0, 500) },
         { status: 502 }
       );
     }
 
     if (!response.ok) {
-      const msg =
-        data?.error?.message ||
-        rawText.slice(0, 300) ||
-        "Unknown Gemini API error";
+      const msg = data?.error?.message || rawText.slice(0, 300) || "Unknown Gemini API error";
       console.error("🚨 Gemini API error:", msg);
       return NextResponse.json({ error: msg }, { status: 502 });
     }
@@ -120,9 +110,7 @@ ${content}
     /* -------------------------------------------------------------------------- */
     await supabaseAdmin
       .from("user_balance")
-      .update({
-        balance_words: balanceRow.balance_words - wordCount,
-      })
+      .update({ balance_words: balanceRow.balance_words - wordCount })
       .eq("user_id", userId);
 
     /* -------------------------------------------------------------------------- */
