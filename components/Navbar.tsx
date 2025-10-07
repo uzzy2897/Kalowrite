@@ -121,7 +121,7 @@ export default function Navbar() {
         <Link
           href="/profile"
           onClick={() => setIsDropdownOpen(false)}
-          className="block px-3 py-2 mt-2 hover:bg-muted"
+          className="block px-3 py-2 mt-2 text-center border-b hover:bg-muted"
         >
           My Profile
         </Link>
@@ -131,14 +131,14 @@ export default function Navbar() {
           <Link
             href="/top-up"
             onClick={() => setIsDropdownOpen(false)}
-            className="block px-3 py-2 text-center text-white  font-semibold bg-card hover:bg-primary/20 transition rounded-md mx-3 my-2"
+            className="block px-3 py-2 text-center text-white border   font-semibold bg-card hover:bg-primary/20 transition rounded-md mx-3 my-2"
           >
             Get more words
           </Link>
         )}
 
         <SignOutButton>
-          <button className="w-full text-left px-3 py-2 text-destructive hover:bg-muted">
+          <button className="w-full  px-3 text-center py-2 text-destructive hover:bg-muted">
             Sign Out
           </button>
         </SignOutButton>
