@@ -11,34 +11,30 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: Request) {
   try {
-    // 🧭 Clerk Auth
+    // ✅ Get authenticated Clerk user
     const user = await currentUser();
-    if (!user)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const userId = user.id;
     const email = user.emailAddresses?.[0]?.emailAddress;
-    if (!email)
-      return NextResponse.json({ error: "Missing email address" }, { status: 400 });
+    if (!email) return NextResponse.json({ error: "Missing email" }, { status: 400 });
 
-    // 🧾 Parse request body
+    // ✅ Parse body
     const { plan, billing = "monthly" } = await req.json();
     const priceId = getPriceId(plan, billing);
-    if (!priceId)
-      return NextResponse.json({ error: "Invalid plan or billing" }, { status: 400 });
+    if (!priceId) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
 
-    // 🗄️ Fetch or create Stripe customer
+    // ✅ Fetch or create customer
     const { data: membership } = await supabaseAdmin
       .from("membership")
       .select("stripe_customer_id")
       .eq("user_id", userId)
-      .single();
+      .maybeSingle();
 
     let stripeCustomerId = membership?.stripe_customer_id;
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
         email,
-        name: user.fullName || undefined,
         metadata: { userId },
       });
       stripeCustomerId = customer.id;
@@ -51,20 +47,17 @@ export async function POST(req: Request) {
         );
     }
 
-    // ✅ Create Checkout session (first subscription only)
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yourapp.com";
-
+    // ✅ Create Checkout Session
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      payment_method_types: ["card"],
       customer: stripeCustomerId,
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: {
-        metadata: { userId, plan, billing },
+        metadata: { userId, plan, billing }, // ✅ stored on subscription
       },
       metadata: { userId, plan, billing },
-      success_url: `${appUrl}/humanize?success=true`,
-      cancel_url: `${appUrl}/pricing?canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/humanize?success=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
     });
 
     return NextResponse.json({ url: session.url });
