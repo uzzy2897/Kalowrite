@@ -186,15 +186,11 @@ export async function POST(req: Request) {
 
     console.log(`🧾 customer.subscription.created handled for ${userId}`);
   }
-
-  /* ------------------------------------------------------------------------ */
-  /* 3️⃣ customer.subscription.updated → upgrades/downgrades handling        */
-  /* ------------------------------------------------------------------------ */
   if (event.type === "customer.subscription.updated") {
     const sub = event.data.object as Stripe.Subscription;
     const { start, end } = getPeriod(sub);
     const billingInterval = getBillingInterval(sub);
-
+  
     let userId = "";
     try {
       const customer =
@@ -205,19 +201,20 @@ export async function POST(req: Request) {
       userId = customer?.metadata?.userId || "";
     } catch {}
     if (!userId) return new Response("ok");
-
+  
     const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
     if (!plan) return new Response("ok");
-
+  
     const { data: membership } = await supabaseAdmin
       .from("membership")
       .select("plan, scheduled_plan, scheduled_plan_effective_at")
       .eq("user_id", userId)
       .maybeSingle();
-
+  
     const oldPlan = membership?.plan ?? "free";
     const target = plan.name;
-
+  
+    /* ✅ Immediate Upgrade */
     if (
       (oldPlan === "basic" && ["pro", "ultra"].includes(target)) ||
       (oldPlan === "pro" && target === "ultra")
@@ -225,7 +222,30 @@ export async function POST(req: Request) {
       await resetPlanAndBalance(userId, target, plan.quota);
       await upsertMembership({ userId, plan: target, billingInterval, start, end, sub });
       console.log(`⬆️ Upgrade applied: ${oldPlan} → ${target}`);
-    } else if (
+    }
+  
+    /* ✅ Downgrade via portal (pending_update) */
+    else if (sub.pending_update) {
+      const nextPriceId = sub.pending_update?.subscription_items?.[0]?.price?.id;
+      const nextPlan = planFromPriceId(nextPriceId)?.name || "free";
+      const nextAt = new Date(sub.pending_update.expires_at * 1000).toISOString();
+  
+      await upsertMembership({
+        userId,
+        plan: oldPlan,
+        billingInterval,
+        start,
+        end,
+        sub,
+        scheduledPlan: nextPlan,
+        scheduledAt: nextAt,
+      });
+  
+      console.log(`⏳ Downgrade scheduled via portal: ${oldPlan} → ${nextPlan}`);
+    }
+  
+    /* ✅ Manual downgrade from your app (immediate plan change) */
+    else if (
       (oldPlan === "ultra" && ["pro", "basic"].includes(target)) ||
       (oldPlan === "pro" && ["basic", "free"].includes(target)) ||
       (oldPlan === "basic" && target === "free")
@@ -241,7 +261,10 @@ export async function POST(req: Request) {
         scheduledAt: end,
       });
       console.log(`⏳ Downgrade scheduled: ${oldPlan} → ${target}`);
-    } else {
+    }
+  
+    /* ✅ Default sync */
+    else {
       await upsertMembership({
         userId,
         plan: target,
@@ -254,6 +277,7 @@ export async function POST(req: Request) {
       });
     }
   }
+  
 
   /* ------------------------------------------------------------------------ */
   /* 4️⃣ invoice.paid → refill next cycle & apply downgrade if scheduled      */
