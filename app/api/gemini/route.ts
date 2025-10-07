@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       return new NextResponse("Insufficient balance", { status: 402 });
 
     // 4️⃣ Call Gemini API
-    const model = "models/gemini-2.5-flash-lite";
+    const model = "models/gemini-2.5-pro";
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY)
       return new NextResponse("Server misconfigured", { status: 500 });
