@@ -131,7 +131,7 @@ export default function Navbar() {
           <Link
             href="/top-up"
             onClick={() => setIsDropdownOpen(false)}
-            className="block px-3 py-2 text-center text-white font-semibold bg-primary hover:bg-primary/80 transition rounded-md mx-3 my-2"
+            className="block px-3 py-2 text-center text-white  font-semibold bg-card hover:bg-primary/20 transition rounded-md mx-3 my-2"
           >
             Get more words
           </Link>
