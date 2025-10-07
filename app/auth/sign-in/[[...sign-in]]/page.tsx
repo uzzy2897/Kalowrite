@@ -10,7 +10,7 @@ export default function SignInPage() {
   const [redirectUrl, setRedirectUrl] = useState("/");
 
   useEffect(() => {
-    const url = searchParams.get("redirectTo");
+    const url = searchParams.get("redirect_url"); // 👈 must match pricing param
     if (url && typeof window !== "undefined") {
       setRedirectUrl(`${window.location.origin}${url}`);
     }
@@ -23,7 +23,7 @@ export default function SignInPage() {
         routing="path"
         signUpUrl="/auth/sign-up"
         fallbackRedirectUrl="/"
-        forceRedirectUrl={redirectUrl}
+        forceRedirectUrl={redirectUrl} // 👈 correct redirect
         appearance={{
           elements: {
             formButtonPrimary: "#2CB175",

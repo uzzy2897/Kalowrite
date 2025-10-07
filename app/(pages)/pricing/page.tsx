@@ -4,6 +4,8 @@ import { CircleCheck, Loader2, XCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@clerk/nextjs";
+import { useRouter, usePathname } from "next/navigation";
+
 
 type Membership = {
   plan?: string;
@@ -13,6 +15,9 @@ type Membership = {
 };
 
 export default function PricingPage() {
+  const router = useRouter();
+const pathname = usePathname();
+
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
@@ -52,16 +57,18 @@ export default function PricingPage() {
 
   /* ---------------------------------------------------------------------- */
   /* ✅ Subscribe (only if user has no active plan)                         */
-  /* ---------------------------------------------------------------------- */
   const handleSubscribe = async (plan: string) => {
     if (!isSignedIn) {
-      window.location.href = `/auth/sign-in?redirect_url=${encodeURIComponent("/pricing")}`;
+      // Wait for next tick to ensure router exists
+      setTimeout(() => {
+        router.push(`/auth/sign-in?redirect_url=${pathname}`);
+      }, 0);
       return;
     }
-
+  
     setLoadingAction(plan);
     setMessage(null);
-
+  
     try {
       const res = await fetch("/api/create-subscription-session", {
         method: "POST",
@@ -69,9 +76,9 @@ export default function PricingPage() {
         body: JSON.stringify({ plan, billing }),
       });
       const data = await res.json();
-
+  
       if (data.url) {
-        window.location.href = data.url;
+        window.location.href = data.url; // redirect to Stripe
       } else {
         setMessage({ type: "error", text: data.error || "Checkout failed." });
       }
@@ -81,6 +88,7 @@ export default function PricingPage() {
       setLoadingAction(null);
     }
   };
+  
 
   /* ---------------------------------------------------------------------- */
   /* ✅ Manage Plan (upgrade / downgrade / cancel)                          */
