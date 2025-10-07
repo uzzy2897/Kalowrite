@@ -184,7 +184,77 @@ export async function POST(req: Request) {
   }
 
   /* ------------------------------------------------------------------------ */
-  /* 3️⃣ subscription_schedule.created (portal downgrade)                     */
+  /* 3️⃣ customer.subscription.updated (portal upgrades/downgrades)           */
+  /* ------------------------------------------------------------------------ */
+  if (event.type === "customer.subscription.updated") {
+    const sub = event.data.object as Stripe.Subscription;
+    const { start, end } = getPeriod(sub);
+    const billingInterval = getBillingInterval(sub);
+
+    const customer =
+      typeof sub.customer === "string"
+        ? ((await stripe.customers.retrieve(sub.customer)) as Stripe.Customer)
+        : (sub.customer as Stripe.Customer);
+    const userId = (customer as any)?.metadata?.userId || "";
+    if (!userId) return new Response("ok");
+
+    const plan = planFromPriceId(sub.items.data[0]?.price?.id);
+    if (!plan) return new Response("ok");
+// 🔮 Check for scheduled plan change safely
+let scheduledPlan: string | null = null;
+let scheduledAt: string | null = null;
+
+if (sub.schedule) {
+  try {
+    let scheduleObj: Stripe.SubscriptionSchedule | null = null;
+
+    if (typeof sub.schedule === "string") {
+      scheduleObj = await stripe.subscriptionSchedules.retrieve(sub.schedule);
+    } else if (typeof sub.schedule === "object") {
+      scheduleObj = sub.schedule as Stripe.SubscriptionSchedule;
+    }
+
+    const nextPhase = scheduleObj?.phases?.[1];
+    const priceObj = nextPhase?.items?.[0]?.price;
+    let nextPlanId: string | null = null;
+
+    if (typeof priceObj === "string") {
+      nextPlanId = priceObj;
+    } else if (priceObj && "id" in priceObj) {
+      nextPlanId = priceObj.id;
+    }
+
+    if (nextPlanId) {
+      scheduledPlan = planFromPriceId(nextPlanId)?.name || null;
+    }
+
+    scheduledAt = nextPhase?.start_date
+      ? new Date(nextPhase.start_date * 1000).toISOString()
+      : null;
+  } catch (err) {
+    console.warn("⚠️ Failed to fetch schedule:", err);
+  }
+}
+
+
+    await upsertMembership({
+      userId,
+      plan: plan.name,
+      billingInterval,
+      start,
+      end,
+      sub,
+      scheduledPlan,
+      scheduledAt,
+    });
+
+    console.log(
+      `🆙 Subscription updated → ${plan.name} (scheduled → ${scheduledPlan ?? "none"})`
+    );
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* 4️⃣ subscription_schedule.created (scheduled change created)             */
   /* ------------------------------------------------------------------------ */
   if (event.type === "subscription_schedule.created") {
     const schedule = event.data.object as Stripe.SubscriptionSchedule;
@@ -220,11 +290,60 @@ export async function POST(req: Request) {
       scheduledAt: nextStart,
     });
 
-    console.log(`⏳ Downgrade scheduled (portal): ${currentPlan?.name} → ${nextPlan.name}`);
+    console.log(`⏳ Scheduled plan: ${currentPlan?.name} → ${nextPlan.name}`);
   }
 
   /* ------------------------------------------------------------------------ */
-  /* 4️⃣ invoice.paid → apply scheduled downgrade or refill                   */
+  /* 5️⃣ subscription_schedule.canceled (cleanup)                             */
+  /* ------------------------------------------------------------------------ */
+  if (event.type === "subscription_schedule.canceled") {
+    const schedule = event.data.object as Stripe.SubscriptionSchedule;
+    const customer = await stripe.customers.retrieve(schedule.customer as string);
+    const userId = (customer as any)?.metadata?.userId || "";
+    if (!userId) return new Response("ok");
+
+    await supabaseAdmin
+      .from("membership")
+      .update({
+        scheduled_plan: null,
+        scheduled_plan_effective_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
+
+    console.log(`🧹 Scheduled plan canceled for ${userId}`);
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* 6️⃣ customer.subscription.deleted (cancellation)                         */
+  /* ------------------------------------------------------------------------ */
+  if (event.type === "customer.subscription.deleted") {
+    const sub = event.data.object as Stripe.Subscription;
+    const customer =
+      typeof sub.customer === "string"
+        ? ((await stripe.customers.retrieve(sub.customer)) as Stripe.Customer)
+        : (sub.customer as Stripe.Customer);
+    const userId = (customer as any)?.metadata?.userId || "";
+    if (!userId) return new Response("ok");
+
+    await supabaseAdmin
+      .from("membership")
+      .update({
+        plan: "free",
+        active: false,
+        stripe_subscription_id: null,
+        scheduled_plan: null,
+        scheduled_plan_effective_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
+
+    await resetPlanAndBalance(userId, "free", 500);
+    console.log(`🚫 Subscription canceled for ${userId}`);
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* 7️⃣ invoice.paid → apply scheduled downgrade or refill                   */
   /* ------------------------------------------------------------------------ */
   if (event.type === "invoice.paid") {
     const invoice = event.data.object as Stripe.Invoice & { subscription?: string };
