@@ -14,19 +14,19 @@ type Membership = {
 
 export default function PricingPage() {
   const [loadingUser, setLoadingUser] = useState(true);
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
   const { isSignedIn } = useAuth();
 
   const currentPlan = membership?.plan ?? "free";
-  const currentBilling = membership?.billing_interval ?? "monthly";
   const scheduledPlan = membership?.scheduled_plan ?? null;
+  const currentBilling = membership?.billing_interval ?? "monthly";
+
   const planOrder = ["free", "basic", "pro", "ultra"];
 
-  // ✅ Auto-clear messages after 5 seconds
+  // Auto clear messages
   useEffect(() => {
     if (message) {
       const t = setTimeout(() => setMessage(null), 5000);
@@ -34,14 +34,13 @@ export default function PricingPage() {
     }
   }, [message]);
 
-  // ✅ Fetch current membership from Supabase
+  // Fetch current membership
   useEffect(() => {
     const fetchMembership = async () => {
       try {
         const res = await fetch("/api/membership");
         const data = await res.json();
-        if (res.ok) setMembership(data);
-        else setMembership({ plan: "free" });
+        setMembership(res.ok ? data : { plan: "free" });
       } catch {
         setMembership({ plan: "free" });
       } finally {
@@ -51,15 +50,17 @@ export default function PricingPage() {
     fetchMembership();
   }, []);
 
-  // ✅ Upgrade via Stripe Checkout
-  const handleUpgrade = async (plan: string) => {
-    setMessage(null);
-    setLoadingPlan(plan);
-
+  /* ---------------------------------------------------------------------- */
+  /* ✅ Subscribe (only if user has no active plan)                         */
+  /* ---------------------------------------------------------------------- */
+  const handleSubscribe = async (plan: string) => {
     if (!isSignedIn) {
       window.location.href = `/auth/sign-in?redirect_url=${encodeURIComponent("/pricing")}`;
       return;
     }
+
+    setLoadingAction(plan);
+    setMessage(null);
 
     try {
       const res = await fetch("/api/create-subscription-session", {
@@ -68,40 +69,50 @@ export default function PricingPage() {
         body: JSON.stringify({ plan, billing }),
       });
       const data = await res.json();
-      if (data.url) window.location.href = data.url;
-      else setMessage({ type: "error", text: data.error || "Checkout failed." });
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setMessage({ type: "error", text: data.error || "Checkout failed." });
+      }
     } catch {
-      setMessage({ type: "error", text: "Failed to start checkout." });
+      setMessage({ type: "error", text: "Something went wrong. Please try again." });
+    } finally {
+      setLoadingAction(null);
     }
-    setLoadingPlan(null);
   };
 
-  // ✅ Downgrade = Manage plan in Stripe Portal
-  const handleDowngrade = async () => {
-    setMessage(null);
-    setLoadingPlan("portal");
-
+  /* ---------------------------------------------------------------------- */
+  /* ✅ Manage Plan (upgrade / downgrade / cancel)                          */
+  /* ---------------------------------------------------------------------- */
+  const handleManage = async () => {
     if (!isSignedIn) {
       window.location.href = `/auth/sign-in?redirect_url=${encodeURIComponent("/pricing")}`;
       return;
     }
+
+    setLoadingAction("portal");
+    setMessage(null);
 
     try {
       const res = await fetch("/api/create-portal-session", { method: "POST" });
       const data = await res.json();
 
       if (data.url) {
-        window.location.href = data.url; // 🚀 Redirect to Stripe Customer Portal
+        window.location.href = data.url; // Redirect to Stripe Portal
       } else {
-        setMessage({ type: "error", text: data.error || "Failed to open portal." });
+        setMessage({ type: "error", text: data.error || "Failed to open Stripe Portal." });
       }
     } catch {
-      setMessage({ type: "error", text: "Error creating portal session." });
+      setMessage({ type: "error", text: "Error connecting to Stripe Portal." });
+    } finally {
+      setLoadingAction(null);
     }
-
-    setLoadingPlan(null);
   };
 
+  /* ---------------------------------------------------------------------- */
+  /* 🧾 Plans Definition                                                    */
+  /* ---------------------------------------------------------------------- */
   const plans = [
     {
       name: "Basic",
@@ -111,11 +122,9 @@ export default function PricingPage() {
       features: [
         "5,000 words per month",
         "500 words per request",
-        "Bypass all AI detectors",
-        "Undetectable results",
+        "Bypass AI detectors",
         "Plagiarism free",
-        "Human-like results",
-        "Error-free writing",
+        "Human-like writing",
       ],
     },
     {
@@ -125,8 +134,8 @@ export default function PricingPage() {
       yearlyPrice: "$179.88/yr",
       features: [
         "All Basic features",
-        "Top up credits as you go",
         "1,500 words per request",
+        "Top-up credits anytime",
         "15,000 words per month",
       ],
     },
@@ -136,7 +145,7 @@ export default function PricingPage() {
       monthlyPrice: "$59.99/mo",
       yearlyPrice: "$359.88/yr",
       features: [
-        "All Basic & Pro features",
+        "All Pro features",
         "Priority Support",
         "3,000 words per request",
         "30,000 words per month",
@@ -144,18 +153,21 @@ export default function PricingPage() {
     },
   ];
 
+  /* ---------------------------------------------------------------------- */
+  /* 🧱 Render                                                             */
+  /* ---------------------------------------------------------------------- */
   return (
     <main className="max-w-7xl mx-auto py-16 px-6 text-center">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <h1 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h1>
         <p className="text-muted-foreground mb-10">
-          Get started for free and upgrade anytime. Cancel anytime, no questions asked.
+          Get started for free, upgrade anytime. Cancel anytime through the portal.
         </p>
         <p className="text-sm text-muted-foreground mb-3">Switch to yearly and save 50%</p>
       </motion.div>
 
-      {/* Inline Alert */}
+      {/* Alert */}
       {message && (
         <div
           className={`mb-8 mx-auto max-w-md flex items-center gap-3 p-3 rounded-md text-sm ${
@@ -164,7 +176,11 @@ export default function PricingPage() {
               : "bg-red-50 text-red-700 border border-red-200"
           }`}
         >
-          {message.type === "success" ? <CircleCheck className="w-5 h-5 shrink-0" /> : <XCircle className="w-5 h-5 shrink-0" />}
+          {message.type === "success" ? (
+            <CircleCheck className="w-5 h-5 shrink-0" />
+          ) : (
+            <XCircle className="w-5 h-5 shrink-0" />
+          )}
           <span>{message.text}</span>
         </div>
       )}
@@ -191,7 +207,7 @@ export default function PricingPage() {
         </div>
       </div>
 
-      {/* Pricing Cards */}
+      {/* Plans Grid */}
       <motion.div
         className="grid gap-8 md:grid-cols-3"
         initial="hidden"
@@ -218,11 +234,10 @@ export default function PricingPage() {
               }}
               transition={{ duration: 0.4, ease: "easeOut" }}
               whileHover={{ y: -6, boxShadow: "0 8px 20px rgba(0,0,0,0.1)" }}
-              className={`border rounded-2xl p-8 bg-card flex flex-col relative ${
+              className={`border rounded-2xl p-8 bg-card flex flex-col ${
                 plan.slug === "pro" ? "border-emerald-500" : "border-muted"
               }`}
             >
-              {/* Plan Name */}
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold">{plan.name}</h2>
                 {plan.slug === "pro" && (
@@ -230,10 +245,8 @@ export default function PricingPage() {
                 )}
               </div>
 
-              {/* Price */}
               <p className="text-4xl font-medium text-start mb-6">{priceText}</p>
 
-              {/* Features */}
               <ul className="mb-8 space-y-3 text-left">
                 {plan.features.map((f, i) => (
                   <li key={i} className="flex items-center gap-2 text-muted-foreground">
@@ -242,7 +255,6 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              {/* Button */}
               {loadingUser ? (
                 <div className="mt-auto h-12 bg-muted animate-pulse rounded-md" />
               ) : isCurrent ? (
@@ -250,7 +262,7 @@ export default function PricingPage() {
                   disabled
                   className="mt-auto px-6 py-3 bg-accent text-muted-foreground rounded-md border cursor-not-allowed"
                 >
-                  Current ({billing === "monthly" ? "Monthly" : "Yearly"})
+                  Current Plan ({billing})
                 </button>
               ) : isScheduled ? (
                 <button
@@ -259,23 +271,21 @@ export default function PricingPage() {
                 >
                   Scheduled to activate
                 </button>
+              ) : currentPlan === "free" ? (
+                <button
+                  onClick={() => handleSubscribe(plan.slug)}
+                  disabled={loadingAction === plan.slug}
+                  className="mt-auto px-6 py-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-md transition-colors disabled:opacity-50"
+                >
+                  {loadingAction === plan.slug ? <Loader2 className="animate-spin mx-auto" /> : "Subscribe"}
+                </button>
               ) : (
                 <button
-                  onClick={() => (isUpgrade ? handleUpgrade(plan.slug) : handleDowngrade())}
-                  disabled={loadingPlan === plan.slug || loadingPlan === "portal"}
-                  className={`mt-auto px-6 py-3 rounded-md transition-colors ${
-                    isUpgrade
-                      ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                      : "bg-muted text-foreground hover:bg-muted/80"
-                  } disabled:opacity-50`}
+                  onClick={handleManage}
+                  disabled={loadingAction === "portal"}
+                  className="mt-auto px-6 py-3 bg-muted text-foreground hover:bg-muted/80 rounded-md transition-colors disabled:opacity-50"
                 >
-                  {loadingPlan === plan.slug || loadingPlan === "portal" ? (
-                    <Loader2 className="animate-spin mx-auto" />
-                  ) : isUpgrade ? (
-                    "Upgrade"
-                  ) : (
-                    "Downgrade"
-                  )}
+                  {loadingAction === "portal" ? <Loader2 className="animate-spin mx-auto" /> : isUpgrade ? "Upgrade" : "Manage Plan"}
                 </button>
               )}
             </motion.div>
