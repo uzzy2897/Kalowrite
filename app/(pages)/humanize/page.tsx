@@ -49,12 +49,14 @@ export default function Humanizepagee() {
     percent > 70 ? "bg-emerald-500" : percent > 30 ? "bg-yellow-500" : "bg-red-500";
 
   const lowBalance = percent < 30;
+  
 
   // ✅ Derived input word count
   const words = input.trim().split(/\s+/).filter(Boolean);
   const wordCount = words.length;
   const tooShort = wordCount > 0 && wordCount < 50;
-  const exceeded = wordCount > quota;
+  const exceeded = wordCount > (balance || 0);
+
 
   // ✅ Fetch balance
   const fetchBalance = async () => {
