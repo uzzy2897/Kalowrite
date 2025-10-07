@@ -58,12 +58,12 @@ Text:
 ${content}
 `;
 
-    // ✅ FULL 2.0 TEMPERATURE SUPPORT
+    // Full 2.0 temperature for maximum creativity, supported by gemini-2.5-pro
     const generationConfig = {
-      temperature: 2.0, // ✅ Now supported!
+      temperature: 2.0, 
       topP: 0.9,
       topK: 40,
-      maxOutputTokens: 32768, // generous context window
+      maxOutputTokens: 32768, 
     };
 
     const response = await fetch(
@@ -78,16 +78,34 @@ ${content}
       }
     );
 
-    const data = await response.json();
+    let data: any = {};
+    let responseText = "";
+    
+    // Safely read the response body as text first
+    try {
+        responseText = await response.text();
+        // Attempt to parse the text as JSON
+        data = JSON.parse(responseText); 
+    } catch (e) {
+        // If parsing fails, this is the error. The error message will be the raw text.
+        // If the status is not ok, return the raw text (truncated) as the error message.
+        if (!response.ok) {
+            const errorMsg = responseText.substring(0, 500) || "Unknown non-JSON API Error";
+            console.error("Gemini API returned non-JSON error:", errorMsg);
+            return new NextResponse(`Gemini API Error: ${errorMsg}`, { status: 502 });
+        }
+        // If the status was 200 but parsing failed, we still treat it as an output error.
+    }
 
     if (!response.ok) {
-      console.error("Gemini API error:", data);
-      return new NextResponse("Gemini API Error", { status: 502 });
+      const errorMessage = data.error?.message || responseText || "Gemini API Error (Unknown)";
+      console.error("Gemini API error:", errorMessage);
+      return new NextResponse(errorMessage, { status: 502 });
     }
 
     const output =
       data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-      "No output received.";
+      "No output received. Try adjusting the input.";
 
     /* -------------------------------------------------------------------------- */
     /* 💰 5️⃣ Deduct Used Words                                                */
