@@ -79,62 +79,74 @@ export default function Navbar() {
               ✨ Start Humanizing
             </Link>
 
-            {/* Avatar dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setIsDropdownOpen((prev) => !prev)}
-                className="h-8 w-8 rounded-full overflow-hidden flex items-center justify-center border border-neutral-700"
-              >
-                <img
-                  src={user?.imageUrl || "https://placehold.co/32x32"}
-                  alt="Avatar"
-                  className="h-full w-full object-cover"
-                />
-              </button>
+        
+           {/* Avatar dropdown */}
+<div className="relative">
+  <button
+    onClick={() => setIsDropdownOpen((prev) => !prev)}
+    className="h-8 w-8 rounded-full overflow-hidden flex items-center justify-center border border-neutral-700"
+  >
+    <img
+      src={user?.imageUrl || "https://placehold.co/32x32"}
+      alt="Avatar"
+      className="h-full w-full object-cover"
+    />
+  </button>
 
-              <AnimatePresence>
-                {isDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute right-0 mt-2 w-64 bg-card border rounded-xl shadow-md text-sm z-50 overflow-hidden"
-                  >
-                    {/* Header with avatar, name, plan */}
-                    <div className="p-2 flex items-center gap-3 bg-accent">
-                      <img
-                        src={user?.imageUrl || "https://placehold.co/32x32"}
-                        alt="Avatar"
-                        className="h-10 w-10 rounded-full object-cover border"
-                      />
-                      <div className="flex gap-2 w-full items-center justify-between">
-                        <p className="font-medium">
-                          {user?.fullName || "User"}
-                        </p>
-                        <p className="text-xs bg-emerald-500 w-fit  text-black py-1 px-3  rounded-full  capitalize">
-                           {plan}
-                        </p>
-                      </div>
-                    </div>
+  <AnimatePresence>
+    {isDropdownOpen && (
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.2 }}
+        className="absolute right-0 mt-2 w-64 bg-card border rounded-xl shadow-md text-sm z-50 overflow-hidden"
+      >
+        {/* Header with avatar, name, plan */}
+        <div className="p-2 flex items-center gap-3 bg-accent">
+          <img
+            src={user?.imageUrl || "https://placehold.co/32x32"}
+            alt="Avatar"
+            className="h-10 w-10 rounded-full object-cover border"
+          />
+          <div className="flex gap-2 w-full items-center justify-between">
+            <p className="font-medium">{user?.fullName || "User"}</p>
+            <p className="text-xs bg-emerald-500 w-fit text-black py-1 px-3 rounded-full capitalize">
+              {plan}
+            </p>
+          </div>
+        </div>
 
-                    {/* Links */}
-                    <Link
-                      href="/profile"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="block px-3 py-2 mt-2 hover:bg-muted"
-                    >
-                      My Profile
-                    </Link>
-                    <SignOutButton>
-                      <button className="w-full text-left px-3 py-2 text-destructive hover:bg-muted">
-                        Sign Out
-                      </button>
-                    </SignOutButton>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+        {/* Links */}
+        <Link
+          href="/profile"
+          onClick={() => setIsDropdownOpen(false)}
+          className="block px-3 py-2 mt-2 hover:bg-muted"
+        >
+          My Profile
+        </Link>
+
+        {/* 💎 Show this only for pro or ultra plans */}
+        {(plan === "pro" || plan === "ultra") && (
+          <Link
+            href="/top-up"
+            onClick={() => setIsDropdownOpen(false)}
+            className="block px-3 py-2 text-center text-white font-semibold bg-primary hover:bg-primary/80 transition rounded-md mx-3 my-2"
+          >
+            Get more words
+          </Link>
+        )}
+
+        <SignOutButton>
+          <button className="w-full text-left px-3 py-2 text-destructive hover:bg-muted">
+            Sign Out
+          </button>
+        </SignOutButton>
+      </motion.div>
+    )}
+  </AnimatePresence>
+</div>
+
           </SignedIn>
         </div>
 
