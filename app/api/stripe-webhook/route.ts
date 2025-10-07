@@ -1,4 +1,3 @@
-// app/api/stripe/webhook/route.ts
 import { headers } from "next/headers";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
@@ -9,9 +8,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 /* -------------------------------------------------------------------------- */
-/* 🕒 PERIOD + BILLING HELPERS                                                */
+/* 🕒 HELPERS                                                                 */
 /* -------------------------------------------------------------------------- */
-function getPeriod(sub: Stripe.Subscription): { start: string | null; end: string | null } {
+function getPeriod(sub: Stripe.Subscription) {
   const s = sub as any;
   const startUnix =
     s.current_period_start ??
@@ -53,11 +52,22 @@ async function resetPlanAndBalance(userId: string, planName: string, quota: numb
       { onConflict: "user_id" }
     );
 
-  if (error) console.error("❌ resetPlanAndBalance failed:", error);
-  else console.log(`✅ Balance reset → ${quota} words (${planName}) for ${userId}`);
+  if (error)
+    console.error("❌ resetPlanAndBalance failed:", error);
+  else
+    console.log(`✅ Balance reset → ${quota} words (${planName}) for ${userId}`);
 }
 
-async function upsertMembership(args: {
+async function upsertMembership({
+  userId,
+  plan,
+  billingInterval,
+  start,
+  end,
+  sub,
+  scheduledPlan = null,
+  scheduledAt = null,
+}: {
   userId: string;
   plan: string;
   billingInterval: "monthly" | "yearly";
@@ -67,17 +77,6 @@ async function upsertMembership(args: {
   scheduledPlan?: string | null;
   scheduledAt?: string | null;
 }) {
-  const {
-    userId,
-    plan,
-    billingInterval,
-    start,
-    end,
-    sub,
-    scheduledPlan = null,
-    scheduledAt = null,
-  } = args;
-
   const { error } = await supabaseAdmin.from("membership").upsert(
     {
       user_id: userId,
@@ -95,12 +94,11 @@ async function upsertMembership(args: {
     },
     { onConflict: "user_id" }
   );
-
   if (error) console.error("❌ upsertMembership failed:", error);
 }
 
 /* -------------------------------------------------------------------------- */
-/* 🚀 MAIN STRIPE WEBHOOK HANDLER                                             */
+/* 🚀 STRIPE WEBHOOK HANDLER                                                  */
 /* -------------------------------------------------------------------------- */
 export async function POST(req: Request) {
   const sig = (await headers()).get("stripe-signature");
@@ -108,6 +106,7 @@ export async function POST(req: Request) {
 
   const body = await req.text();
   let event: Stripe.Event;
+
   try {
     event = stripe.webhooks.constructEvent(
       body,
@@ -122,7 +121,7 @@ export async function POST(req: Request) {
   console.log("🔔 Stripe event:", event.type);
 
   /* ------------------------------------------------------------------------ */
-  /* 1️⃣ checkout.session.completed → create membership immediately          */
+  /* 1️⃣ checkout.session.completed                                           */
   /* ------------------------------------------------------------------------ */
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
@@ -130,7 +129,10 @@ export async function POST(req: Request) {
     if (!userId) return new Response("Missing userId", { status: 400 });
 
     if (session.mode === "subscription") {
-      const sub = await stripe.subscriptions.retrieve(session.subscription as string);
+      const sub = (await stripe.subscriptions.retrieve(
+        session.subscription as string
+      )) as Stripe.Subscription;
+
       const { start, end } = getPeriod(sub);
       const billingInterval = getBillingInterval(sub);
       const plan = planFromPriceId(sub.items.data[0]?.price?.id);
@@ -138,8 +140,7 @@ export async function POST(req: Request) {
 
       await upsertMembership({ userId, plan: plan.name, billingInterval, start, end, sub });
       await resetPlanAndBalance(userId, plan.name, plan.quota);
-
-      console.log(`🆕 Subscription created via checkout.session.completed for ${userId}`);
+      console.log(`🆕 New subscription created for ${userId}`);
     }
 
     if (session.mode === "payment") {
@@ -160,159 +161,121 @@ export async function POST(req: Request) {
   }
 
   /* ------------------------------------------------------------------------ */
-  /* 2️⃣ customer.subscription.created → redundant safety insertion          */
+  /* 2️⃣ customer.subscription.created                                        */
   /* ------------------------------------------------------------------------ */
   if (event.type === "customer.subscription.created") {
     const sub = event.data.object as Stripe.Subscription;
     const { start, end } = getPeriod(sub);
     const billingInterval = getBillingInterval(sub);
 
-    let userId = "";
-    try {
-      const customer =
-        typeof sub.customer === "string"
-          ? await stripe.customers.retrieve(sub.customer)
-          : sub.customer;
-      // @ts-ignore
-      userId = customer?.metadata?.userId || "";
-    } catch {}
+    const customer =
+      typeof sub.customer === "string"
+        ? ((await stripe.customers.retrieve(sub.customer)) as Stripe.Customer)
+        : (sub.customer as Stripe.Customer);
+    const userId = (customer as any)?.metadata?.userId || "";
     if (!userId) return new Response("ok");
 
-    const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
+    const plan = planFromPriceId(sub.items.data[0]?.price?.id);
     if (!plan) return new Response("ok");
 
     await upsertMembership({ userId, plan: plan.name, billingInterval, start, end, sub });
     await resetPlanAndBalance(userId, plan.name, plan.quota);
-
-    console.log(`🧾 customer.subscription.created handled for ${userId}`);
+    console.log(`🧾 Subscription created (safety) for ${userId}`);
   }
 
   /* ------------------------------------------------------------------------ */
-  /* 3️⃣ customer.subscription.updated → upgrades/downgrades handling        */
+  /* 3️⃣ subscription_schedule.created (portal downgrade)                     */
   /* ------------------------------------------------------------------------ */
-  if (event.type === "customer.subscription.updated") {
-    const sub = event.data.object as Stripe.Subscription;
+  if (event.type === "subscription_schedule.created") {
+    const schedule = event.data.object as Stripe.SubscriptionSchedule;
+    const sub = (await stripe.subscriptions.retrieve(
+      schedule.subscription as string
+    )) as Stripe.Subscription;
+
+    const customer =
+      typeof sub.customer === "string"
+        ? ((await stripe.customers.retrieve(sub.customer)) as Stripe.Customer)
+        : (sub.customer as Stripe.Customer);
+    const userId = (customer as any)?.metadata?.userId || "";
+    if (!userId) return new Response("ok");
+
+    const currentPlan = planFromPriceId(sub.items.data[0]?.price?.id);
+    const nextPhase = schedule.phases?.[1];
+    const nextPriceId = nextPhase?.items?.[0]?.price;
+    const nextPlan = nextPriceId ? planFromPriceId(nextPriceId as string) : null;
+    const nextStart = nextPhase?.start_date
+      ? new Date(nextPhase.start_date * 1000).toISOString()
+      : null;
+
+    if (!nextPlan) return new Response("ok");
+
+    await upsertMembership({
+      userId,
+      plan: currentPlan?.name ?? "free",
+      billingInterval: getBillingInterval(sub),
+      start: new Date((sub as any).current_period_start * 1000).toISOString(),
+      end: new Date((sub as any).current_period_end * 1000).toISOString(),
+      sub,
+      scheduledPlan: nextPlan.name,
+      scheduledAt: nextStart,
+    });
+
+    console.log(`⏳ Downgrade scheduled (portal): ${currentPlan?.name} → ${nextPlan.name}`);
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* 4️⃣ invoice.paid → apply scheduled downgrade or refill                   */
+  /* ------------------------------------------------------------------------ */
+  if (event.type === "invoice.paid") {
+    const invoice = event.data.object as Stripe.Invoice & { subscription?: string };
+    if (!invoice.subscription) return new Response("ok");
+
+    const sub = (await stripe.subscriptions.retrieve(
+      invoice.subscription
+    )) as Stripe.Subscription;
+
     const { start, end } = getPeriod(sub);
     const billingInterval = getBillingInterval(sub);
 
-    let userId = "";
-    try {
-      const customer =
-        typeof sub.customer === "string"
-          ? await stripe.customers.retrieve(sub.customer)
-          : sub.customer;
-      // @ts-ignore
-      userId = customer?.metadata?.userId || "";
-    } catch {}
+    const customer =
+      typeof sub.customer === "string"
+        ? ((await stripe.customers.retrieve(sub.customer)) as Stripe.Customer)
+        : (sub.customer as Stripe.Customer);
+    const userId = (customer as any)?.metadata?.userId || "";
     if (!userId) return new Response("ok");
 
-    const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
+    const plan = planFromPriceId(sub.items.data[0]?.price?.id);
     if (!plan) return new Response("ok");
 
     const { data: membership } = await supabaseAdmin
       .from("membership")
-      .select("plan, scheduled_plan, scheduled_plan_effective_at")
+      .select("scheduled_plan, plan")
       .eq("user_id", userId)
       .maybeSingle();
 
-    const oldPlan = membership?.plan ?? "free";
-    const target = plan.name;
+    const finalPlan = membership?.scheduled_plan || plan.name;
+    const previousPlan = membership?.plan;
+    const quota =
+      finalPlan === plan.name
+        ? plan.quota
+        : planFromPriceId(sub.items.data[0].price.id)?.quota ?? plan.quota;
 
-    if (
-      (oldPlan === "basic" && ["pro", "ultra"].includes(target)) ||
-      (oldPlan === "pro" && target === "ultra")
-    ) {
-      await resetPlanAndBalance(userId, target, plan.quota);
-      await upsertMembership({ userId, plan: target, billingInterval, start, end, sub });
-      console.log(`⬆️ Upgrade applied: ${oldPlan} → ${target}`);
-    } else if (
-      (oldPlan === "ultra" && ["pro", "basic"].includes(target)) ||
-      (oldPlan === "pro" && ["basic", "free"].includes(target)) ||
-      (oldPlan === "basic" && target === "free")
-    ) {
-      await upsertMembership({
-        userId,
-        plan: oldPlan,
-        billingInterval,
-        start,
-        end,
-        sub,
-        scheduledPlan: target,
-        scheduledAt: end,
-      });
-      console.log(`⏳ Downgrade scheduled: ${oldPlan} → ${target}`);
-    } else {
-      await upsertMembership({
-        userId,
-        plan: target,
-        billingInterval,
-        start,
-        end,
-        sub,
-        scheduledPlan: membership?.scheduled_plan ?? null,
-        scheduledAt: membership?.scheduled_plan_effective_at ?? null,
-      });
-    }
-  }
+    if (finalPlan !== previousPlan)
+      console.log(`🔄 Plan switch: ${previousPlan} → ${finalPlan}`);
 
-  /* ------------------------------------------------------------------------ */
-  /* 4️⃣ invoice.paid → refill next cycle & apply downgrade if scheduled      */
-  /* ------------------------------------------------------------------------ */
-  if (event.type === "invoice.paid") {
-    const invoice = event.data.object as Stripe.Invoice & { subscription?: string };
-    const reason = invoice.billing_reason ?? "";
-    if (!["subscription_cycle", "subscription_create"].includes(reason))
-      return new Response("ok");
+    await resetPlanAndBalance(userId, finalPlan, quota);
+    await upsertMembership({
+      userId,
+      plan: finalPlan,
+      billingInterval,
+      start,
+      end,
+      sub,
+      scheduledPlan: null,
+      scheduledAt: null,
+    });
 
-    if (invoice.subscription) {
-      const sub = await stripe.subscriptions.retrieve(invoice.subscription);
-      const { start, end } = getPeriod(sub);
-      const billingInterval = getBillingInterval(sub);
-
-      let userId = "";
-      try {
-        const customer =
-          typeof sub.customer === "string"
-            ? await stripe.customers.retrieve(sub.customer)
-            : sub.customer;
-        // @ts-ignore
-        userId = customer?.metadata?.userId || "";
-      } catch {}
-      if (!userId) return new Response("ok");
-
-      const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
-      if (!plan) return new Response("ok");
-
-      const { data: membership } = await supabaseAdmin
-        .from("membership")
-        .select("scheduled_plan, plan")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      const finalPlan = membership?.scheduled_plan || plan.name;
-      const previousPlan = membership?.plan;
-      const quota =
-        finalPlan === plan.name
-          ? plan.quota
-          : planFromPriceId(sub.items.data[0].price.id)?.quota ?? plan.quota;
-
-      if (finalPlan !== previousPlan)
-        console.log(`🔄 Plan change: ${previousPlan} → ${finalPlan}`);
-
-      await resetPlanAndBalance(userId, finalPlan, quota);
-      await upsertMembership({
-        userId,
-        plan: finalPlan,
-        billingInterval,
-        start,
-        end,
-        sub,
-        scheduledPlan: null,
-        scheduledAt: null,
-      });
-
-      console.log(`🗓️ Cycle refill → ${finalPlan} (${billingInterval}) for ${userId}`);
-    }
+    console.log(`🗓️ Cycle refill → ${finalPlan} (${billingInterval}) for ${userId}`);
   }
 
   return new Response("ok", { status: 200 });
