@@ -140,10 +140,10 @@ const handleHumanize = async () => {
     const res = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: input }), // 🔁 match Gemini route param
+      body: JSON.stringify({ content: input }), // match Gemini route param
     });
 
-    const data = await res.text(); // ✅ plain text response (faster)
+    const data = await res.text(); // plain text response (faster)
 
     if (!res.ok) {
       setError(data || "Something went wrong");
