@@ -1,121 +1,84 @@
 export const runtime = "nodejs";
-
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req: Request) {
   try {
-    /* -------------------------------------------------------------------------- */
-    /* 1️⃣ Clerk Authentication                                                  */
-    /* -------------------------------------------------------------------------- */
+    // 1️⃣ Clerk Auth
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    /* -------------------------------------------------------------------------- */
-    /* 2️⃣ Parse Input                                                          */
-    /* -------------------------------------------------------------------------- */
+    // 2️⃣ Parse input
     const { content } = await req.json();
     if (!content || typeof content !== "string") {
-      return NextResponse.json({ error: "No content provided" }, { status: 400 });
+      return new NextResponse("No content provided", { status: 400 });
     }
 
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
 
-    /* -------------------------------------------------------------------------- */
-    /* 3️⃣ Check User Balance in Supabase                                        */
-    /* -------------------------------------------------------------------------- */
+    // 3️⃣ Check current balance
     const { data: balanceRow, error: balanceErr } = await supabaseAdmin
       .from("user_balance")
       .select("balance_words")
       .eq("user_id", userId)
       .single();
 
-    if (balanceErr || !balanceRow) {
-      return NextResponse.json({ error: "Balance not found" }, { status: 404 });
-    }
+    if (balanceErr || !balanceRow)
+      return new NextResponse("Balance not found", { status: 404 });
 
-    if (balanceRow.balance_words < wordCount) {
-      return NextResponse.json({ error: "Insufficient balance" }, { status: 402 });
-    }
+    if (balanceRow.balance_words < wordCount)
+      return new NextResponse("Insufficient balance", { status: 402 });
 
-    /* -------------------------------------------------------------------------- */
-    /* 4️⃣ Call Gemini 1.5 Pro (AI Studio API)                                  */
-    /* -------------------------------------------------------------------------- */
+    // 4️⃣ Call Gemini API
+    const model = "models/gemini-2.5-flash-lite";
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) {
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
-    }
-
-    const model = "models/gemini-1.5-pro-latest"; // ✅ use this one with AI Studio key
+    if (!GEMINI_API_KEY)
+      return new NextResponse("Server misconfigured", { status: 500 });
 
     const prompt = `
-You are the world's best human writer.
-Humanize the following text to sound natural, with IELTS band 5.5 structure but vocabulary at band 8 level.
-Use varied sentence lengths and simple connectors (and, but, so, because).
-Avoid overused AI-style transitions and never use em dashes.
+    You are the world's best human writer. Make sure to strictly follow ALL the guidelines mentioned in this prompt as each one of them is crucial. Failure to follow all of them will result in a huge loss and damage**
+
+    Humanize the following content. Maintain the original tone while rewriting it exactly to an IELTs band 5.5 level while maintaining vocabulary and scientific terms to an IELTS band 8 level. Humanize ANY and ALL sentence structures and writing style that AI typically uses such as perplexity (this is crucial). Use a variety of long and short sentences to increase burstiness and less mechanistic flow (this is also crucial). Avoid common, overused phrases that AI often relies on (e.g., "It is important to note," "Studies have shown," "In today's fast-paced world"). Do NOT change the POV of the text.
+    
+    Use simple connectors (and, but, so, because). Never use em dashes. Keep the formatting exactly how it is in the original text. The text MUST NOT lack complexity. The transitional phrases and connectors MUST be creative, and they must NOT be formulaic. The output MUST embody the creativity and richness of human writing. The syntax pattern MUST be unpredictable. Sometimes circle back or leave thoughts slightly unfinished. Include slight redundancies, natural slips, and relatable specifics. Break up repetition; no 3+ sentences starting alike. Allow small logical gaps; don’t over-explain. Lead with specific points, then add support. Incorporate creative grammatical structures. Deviate from perfect, textbook syntax to create emphasis and voice. Integrate subtle literary devices. The overall structure should feel more like a human thought process, not a machine's logical output. Vary Sentence Structure (to manage Perplexity). Ensure Clarity (to manage Perplexity). Use Repetition Deliberately (to manage Burstiness). Introduce Concepts with Word Clusters (to manage Burstiness).
+    
 
 Text:
 ${content}
 `;
 
-    const generationConfig = {
-      temperature: 1.0,
-      topP: 0.9,
-      topK: 64,
-      maxOutputTokens: 32768,
-    };
-
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1/${model}:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig,
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 2.0,
+            topP: 0.9,
+            topK: 40,
+            maxOutputTokens: 2048,
+          },
         }),
       }
     );
 
-    /* -------------------------------------------------------------------------- */
-    /* 5️⃣ Parse Gemini Response                                                */
-    /* -------------------------------------------------------------------------- */
-    const rawText = await response.text();
-    let data: any;
-    try {
-      data = JSON.parse(rawText);
-    } catch {
-      console.error("⚠️ Gemini returned non-JSON output:", rawText.slice(0, 300));
-      return NextResponse.json(
-        { error: "Gemini returned invalid response", detail: rawText.slice(0, 500) },
-        { status: 502 }
-      );
-    }
-
-    if (!response.ok) {
-      const msg = data?.error?.message || rawText.slice(0, 300) || "Unknown Gemini API error";
-      console.error("🚨 Gemini API error:", msg);
-      return NextResponse.json({ error: msg }, { status: 502 });
-    }
-
+    const data = await response.json();
     const output =
       data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-      "No output received. Try adjusting the input.";
+      "No output received.";
 
-    /* -------------------------------------------------------------------------- */
-    /* 6️⃣ Deduct Used Words                                                    */
-    /* -------------------------------------------------------------------------- */
-    await supabaseAdmin
-      .from("user_balance")
-      .update({ balance_words: balanceRow.balance_words - wordCount })
-      .eq("user_id", userId);
+    // 5️⃣ Deduct balance via RPC
+    await supabaseAdmin.rpc("deduct_balance", {
+      user_id: userId,
+      words_to_deduct: wordCount,
+    });
 
-    /* -------------------------------------------------------------------------- */
-    /* 7️⃣ Log History                                                          */
-    /* -------------------------------------------------------------------------- */
+    // 6️⃣ Save history (optional)
     await supabaseAdmin.from("history").insert({
       user_id: userId,
       input_text: content,
@@ -123,18 +86,13 @@ ${content}
       word_count: wordCount,
     });
 
-    /* -------------------------------------------------------------------------- */
-    /* 8️⃣ Return Output                                                        */
-    /* -------------------------------------------------------------------------- */
+    // 7️⃣ Return output
     return new NextResponse(output, {
       status: 200,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
-  } catch (err: any) {
-    console.error("❌ Gemini route error:", err);
-    return NextResponse.json(
-      { error: "Internal Server Error", detail: err.message || err },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("❌ Gemini error:", err);
+    return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
