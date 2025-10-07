@@ -3,9 +3,8 @@
 import { CircleCheck, Loader2, XCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useClerk } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
-
 
 type Membership = {
   plan?: string;
@@ -16,22 +15,24 @@ type Membership = {
 
 export default function PricingPage() {
   const router = useRouter();
-const pathname = usePathname();
+  const pathname = usePathname();
+  const { isSignedIn } = useAuth();
+  const { openSignIn } = useClerk();
 
   const [loadingUser, setLoadingUser] = useState(true);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const { isSignedIn } = useAuth();
 
   const currentPlan = membership?.plan ?? "free";
   const scheduledPlan = membership?.scheduled_plan ?? null;
   const currentBilling = membership?.billing_interval ?? "monthly";
-
   const planOrder = ["free", "basic", "pro", "ultra"];
 
-  // Auto clear messages
+  /* ---------------------------------------------------------------------- */
+  /* 🔁 Auto clear messages                                                 */
+  /* ---------------------------------------------------------------------- */
   useEffect(() => {
     if (message) {
       const t = setTimeout(() => setMessage(null), 5000);
@@ -39,7 +40,9 @@ const pathname = usePathname();
     }
   }, [message]);
 
-  // Fetch current membership
+  /* ---------------------------------------------------------------------- */
+  /* 📡 Fetch membership                                                    */
+  /* ---------------------------------------------------------------------- */
   useEffect(() => {
     const fetchMembership = async () => {
       try {
@@ -56,29 +59,37 @@ const pathname = usePathname();
   }, []);
 
   /* ---------------------------------------------------------------------- */
-  /* ✅ Subscribe (only if user has no active plan)                         */
+  /* ⚡️ Handle subscribe with auto-login & resume checkout                 */
+  /* ---------------------------------------------------------------------- */
   const handleSubscribe = async (plan: string) => {
+    // Not signed in → open Clerk modal
     if (!isSignedIn) {
-      // Wait for next tick to ensure router exists
-      setTimeout(() => {
-        router.push(`/auth/sign-in?redirect_url=${pathname}`);
-      }, 0);
+      localStorage.setItem("pending_plan", plan);
+      openSignIn({
+        afterSignInUrl: pathname,
+        redirectUrl: pathname,
+        appearance: {
+          variables: { colorPrimary: "#2CB175" },
+        },
+      });
       return;
     }
-  
+
+    // If signed in → proceed to checkout
     setLoadingAction(plan);
     setMessage(null);
-  
+
     try {
       const res = await fetch("/api/create-subscription-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan, billing }),
       });
+
       const data = await res.json();
-  
+
       if (data.url) {
-        window.location.href = data.url; // redirect to Stripe
+        window.location.href = data.url;
       } else {
         setMessage({ type: "error", text: data.error || "Checkout failed." });
       }
@@ -88,14 +99,24 @@ const pathname = usePathname();
       setLoadingAction(null);
     }
   };
-  
 
   /* ---------------------------------------------------------------------- */
-  /* ✅ Manage Plan (upgrade / downgrade / cancel)                          */
+  /* ♻️ Resume checkout after login                                         */
+  /* ---------------------------------------------------------------------- */
+  useEffect(() => {
+    const pendingPlan = localStorage.getItem("pending_plan");
+    if (isSignedIn && pendingPlan) {
+      localStorage.removeItem("pending_plan");
+      handleSubscribe(pendingPlan);
+    }
+  }, [isSignedIn]);
+
+  /* ---------------------------------------------------------------------- */
+  /* ⚙️ Handle manage billing                                               */
   /* ---------------------------------------------------------------------- */
   const handleManage = async () => {
     if (!isSignedIn) {
-      window.location.href = `/auth/sign-in?redirect_url=${encodeURIComponent("/pricing")}`;
+      openSignIn({ afterSignInUrl: pathname, redirectUrl: pathname });
       return;
     }
 
@@ -107,7 +128,7 @@ const pathname = usePathname();
       const data = await res.json();
 
       if (data.url) {
-        window.location.href = data.url; // Redirect to Stripe Portal
+        window.location.href = data.url;
       } else {
         setMessage({ type: "error", text: data.error || "Failed to open Stripe Portal." });
       }
@@ -162,7 +183,7 @@ const pathname = usePathname();
   ];
 
   /* ---------------------------------------------------------------------- */
-  /* 🧱 Render                                                             */
+  /* 🧱 UI Render                                                          */
   /* ---------------------------------------------------------------------- */
   return (
     <main className="max-w-7xl mx-auto py-16 px-6 text-center">
@@ -215,7 +236,7 @@ const pathname = usePathname();
         </div>
       </div>
 
-      {/* Plans Grid */}
+      {/* Plans */}
       <motion.div
         className="grid gap-8 md:grid-cols-3"
         initial="hidden"
@@ -301,7 +322,6 @@ const pathname = usePathname();
         })}
       </motion.div>
 
-      {/* Info footer */}
       {scheduledPlan && (
         <p className="text-sm mt-10 text-muted-foreground">
           Downgrade to <b>{scheduledPlan}</b> effective on{" "}
