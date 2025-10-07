@@ -1,4 +1,3 @@
-// app/api/create-portal-session/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Stripe from "stripe";
@@ -31,9 +30,20 @@ export async function POST() {
       );
     }
 
+    const customerId = membership.stripe_customer_id;
+
+    // 🧩 Ensure customer has userId metadata
+    try {
+      await stripe.customers.update(customerId, {
+        metadata: { userId },
+      });
+    } catch (metaError) {
+      console.error("⚠️ Failed to update Stripe customer metadata:", metaError);
+    }
+
     // 🧾 Create a billing portal session
     const session = await stripe.billingPortal.sessions.create({
-      customer: membership.stripe_customer_id,
+      customer: customerId,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
     });
 
