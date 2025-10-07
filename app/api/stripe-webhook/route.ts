@@ -13,11 +13,13 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 /* -------------------------------------------------------------------------- */
 function getPeriod(sub: Stripe.Subscription) {
   const s = sub as any;
-  const startUnix = s.current_period_start ?? s.start_date ?? Math.floor(Date.now() / 1000);
+  const startUnix =
+    s.current_period_start ?? s.start_date ?? Math.floor(Date.now() / 1000);
   const endUnix =
     s.current_period_end ??
-    (s.current_period_start ? s.current_period_start + 30 * 86400 : Math.floor(Date.now() / 1000 + 30 * 86400));
-
+    (s.current_period_start
+      ? s.current_period_start + 30 * 86400
+      : Math.floor(Date.now() / 1000 + 30 * 86400));
   return {
     start: new Date(startUnix * 1000).toISOString(),
     end: new Date(endUnix * 1000).toISOString(),
@@ -45,8 +47,10 @@ async function resetPlanAndBalance(userId: string, plan: string, quota: number) 
       { onConflict: "user_id" }
     );
 
-  if (error) console.error("❌ resetPlanAndBalance failed:", error);
-  else console.log(`✅ Balance reset → ${quota} words (${plan}) for ${userId}`);
+  if (error)
+    console.error("❌ resetPlanAndBalance failed:", error);
+  else
+    console.log(`✅ Balance reset → ${quota} words (${plan}) for ${userId}`);
 }
 
 async function upsertMembership({
@@ -86,8 +90,10 @@ async function upsertMembership({
     { onConflict: "user_id" }
   );
 
-  if (error) console.error("❌ upsertMembership failed:", error);
-  else console.log(`✅ Membership synced for ${userId} → ${plan}`);
+  if (error)
+    console.error("❌ upsertMembership failed:", error);
+  else
+    console.log(`✅ Membership synced for ${userId} → ${plan}`);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -101,10 +107,16 @@ export async function POST(req: Request) {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    event = stripe.webhooks.constructEvent(
+      body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
   } catch (err) {
     console.error("❌ Webhook signature error:", err);
-    return new Response(`Webhook error: ${(err as any).message}`, { status: 400 });
+    return new Response(`Webhook error: ${(err as any).message}`, {
+      status: 400,
+    });
   }
 
   console.log("🔔 Stripe event:", event.type);
@@ -118,16 +130,25 @@ export async function POST(req: Request) {
     if (!userId) return new Response("Missing userId", { status: 400 });
 
     if (session.mode === "subscription" && session.subscription) {
-      const sub = await stripe.subscriptions.retrieve(session.subscription as string);
+      const sub = await stripe.subscriptions.retrieve(
+        session.subscription as string
+      );
       const { start, end } = getPeriod(sub);
       const billingInterval = getBillingInterval(sub);
       const plan = planFromPriceId(sub.items.data[0]?.price?.id);
       if (!plan) return new Response("Unknown plan", { status: 400 });
 
-      await upsertMembership({ userId, plan: plan.name, billingInterval, start, end, sub });
-      await resetPlanAndBalance(userId, plan.name, plan.quota);
+      console.log(`🆕 checkout.session.completed → ${plan.name} (${billingInterval}) for ${userId}`);
 
-      console.log(`🆕 Subscription created for ${userId} → ${plan.name}`);
+      await upsertMembership({
+        userId,
+        plan: plan.name,
+        billingInterval,
+        start,
+        end,
+        sub,
+      });
+      await resetPlanAndBalance(userId, plan.name, plan.quota);
     }
 
     if (session.mode === "payment") {
@@ -142,13 +163,16 @@ export async function POST(req: Request) {
           },
           { onConflict: "stripe_payment_id" }
         );
-      await supabaseAdmin.rpc("increment_balance", { uid: userId, amount: words });
+      await supabaseAdmin.rpc("increment_balance", {
+        uid: userId,
+        amount: words,
+      });
       console.log(`💰 Top-up: +${words} words for ${userId}`);
     }
   }
 
   /* ------------------------------------------------------------------------ */
-  /* 2️⃣ customer.subscription.created → safety check                         */
+  /* 2️⃣ customer.subscription.created → safety sync                          */
   /* ------------------------------------------------------------------------ */
   if (event.type === "customer.subscription.created") {
     const sub = event.data.object as Stripe.Subscription;
@@ -170,9 +194,9 @@ export async function POST(req: Request) {
     }
     if (!userId) return new Response("ok");
 
+    console.log(`🧾 Subscription.created → ${plan.name} (${billingInterval}) for ${userId}`);
     await upsertMembership({ userId, plan: plan.name, billingInterval, start, end, sub });
     await resetPlanAndBalance(userId, plan.name, plan.quota);
-    console.log(`🧾 Subscription.created synced for ${userId}`);
   }
 
   /* ------------------------------------------------------------------------ */
@@ -205,12 +229,12 @@ export async function POST(req: Request) {
     const oldPlan = membership?.plan ?? "free";
     const target = plan.name;
 
-    // 🟢 Upgrade → immediate + reset quota
+    console.log(`🔄 subscription.updated for ${userId}: ${oldPlan} → ${target}`);
+
     const isUpgrade =
       (oldPlan === "basic" && ["pro", "ultra"].includes(target)) ||
       (oldPlan === "pro" && target === "ultra");
 
-    // 🔵 Downgrade → schedule at end of period
     const isDowngrade =
       (oldPlan === "ultra" && ["pro", "basic"].includes(target)) ||
       (oldPlan === "pro" && ["basic", "free"].includes(target)) ||
@@ -219,7 +243,7 @@ export async function POST(req: Request) {
     if (isUpgrade) {
       await resetPlanAndBalance(userId, target, plan.quota);
       await upsertMembership({ userId, plan: target, billingInterval, start, end, sub });
-      console.log(`⬆️ Upgrade applied: ${oldPlan} → ${target}`);
+      console.log(`⬆️ Upgrade applied immediately: ${oldPlan} → ${target}`);
     } else if (isDowngrade) {
       await upsertMembership({
         userId,
@@ -231,7 +255,7 @@ export async function POST(req: Request) {
         scheduledPlan: target,
         scheduledAt: end,
       });
-      console.log(`⏳ Downgrade scheduled: ${oldPlan} → ${target}`);
+      console.log(`⏳ Downgrade scheduled at end: ${oldPlan} → ${target}`);
     } else {
       await upsertMembership({
         userId,
@@ -280,10 +304,10 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       const finalPlan = membership?.scheduled_plan || plan.name;
-      const quota = planFromPriceId(sub.items.data[0].price.id)?.quota ?? plan.quota;
+      const quota = plan.quota;
 
       if (membership?.scheduled_plan && membership.scheduled_plan !== plan.name) {
-        console.log(`🔄 Scheduled downgrade → ${membership.plan} → ${finalPlan}`);
+        console.log(`🔄 Applying scheduled downgrade: ${membership.plan} → ${finalPlan}`);
       }
 
       await resetPlanAndBalance(userId, finalPlan, quota);
@@ -298,7 +322,7 @@ export async function POST(req: Request) {
         scheduledAt: null,
       });
 
-      console.log(`🗓️ Cycle refill → ${finalPlan} (${billingInterval}) for ${userId}`);
+      console.log(`🗓️ Renewal cycle → ${finalPlan} (${billingInterval}) for ${userId}`);
     }
   }
 
