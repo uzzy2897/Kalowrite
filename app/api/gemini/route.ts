@@ -88,7 +88,7 @@ ${content}
      user_id: userId,
      input_text: content,
      output_text: output,
-     word_count: wordCount,
+     word_used: wordCount,
    })
    .select()
    .single();
