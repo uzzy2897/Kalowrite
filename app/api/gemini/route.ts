@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     if (!GEMINI_API_KEY)
       return new NextResponse("Server misconfigured", { status: 500 });
 
-    const model = "models/gemini-2.5-pro";
+    const model = "gemini-2.5-pro";
 
     const prompt = `
     You are the world's best human writer. Make sure to strictly follow ALL the guidelines mentioned in this prompt as each one of them is crucial.
