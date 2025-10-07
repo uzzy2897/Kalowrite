@@ -188,72 +188,77 @@ export async function POST(req: Request) {
   }
 
   /* ------------------------------------------------------------------------ */
-  /* 3️⃣ customer.subscription.updated → upgrades/downgrades handling        */
-  /* ------------------------------------------------------------------------ */
-  if (event.type === "customer.subscription.updated") {
-    const sub = event.data.object as Stripe.Subscription;
-    const { start, end } = getPeriod(sub);
-    const billingInterval = getBillingInterval(sub);
+/* 3️⃣ customer.subscription.updated → upgrades/downgrades handling        */
+/* ------------------------------------------------------------------------ */
+if (event.type === "customer.subscription.updated") {
+  const sub = event.data.object as Stripe.Subscription;
+  const { start, end } = getPeriod(sub);
+  const billingInterval = getBillingInterval(sub);
 
-    let userId = "";
-    try {
-      const customer =
-        typeof sub.customer === "string"
-          ? await stripe.customers.retrieve(sub.customer)
-          : sub.customer;
-      // @ts-ignore
-      userId = customer?.metadata?.userId || "";
-    } catch {}
-    if (!userId) return new Response("ok");
+  let userId = "";
+  try {
+    const customer =
+      typeof sub.customer === "string"
+        ? await stripe.customers.retrieve(sub.customer)
+        : sub.customer;
+    // @ts-ignore
+    userId = customer?.metadata?.userId || "";
+  } catch {}
+  if (!userId) return new Response("ok");
 
-    const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
-    if (!plan) return new Response("ok");
+  const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
+  if (!plan) return new Response("ok");
 
-    const { data: membership } = await supabaseAdmin
-      .from("membership")
-      .select("plan, scheduled_plan, scheduled_plan_effective_at")
-      .eq("user_id", userId)
-      .maybeSingle();
+  const { data: membership } = await supabaseAdmin
+    .from("membership")
+    .select("plan, scheduled_plan, scheduled_plan_effective_at")
+    .eq("user_id", userId)
+    .maybeSingle();
 
-    const oldPlan = membership?.plan ?? "free";
-    const target = plan.name;
+  const oldPlan = membership?.plan ?? "free";
+  const target = plan.name;
 
-    if (
-      (oldPlan === "basic" && ["pro", "ultra"].includes(target)) ||
-      (oldPlan === "pro" && target === "ultra")
-    ) {
-      await resetPlanAndBalance(userId, target, plan.quota);
-      await upsertMembership({ userId, plan: target, billingInterval, start, end, sub });
-      console.log(`⬆️ Upgrade applied: ${oldPlan} → ${target}`);
-    } else if (
-      (oldPlan === "ultra" && ["pro", "basic"].includes(target)) ||
-      (oldPlan === "pro" && ["basic", "free"].includes(target)) ||
-      (oldPlan === "basic" && target === "free")
-    ) {
-      await upsertMembership({
-        userId,
-        plan: oldPlan,
-        billingInterval,
-        start,
-        end,
-        sub,
-        scheduledPlan: target,
-        scheduledAt: end,
-      });
-      console.log(`⏳ Downgrade scheduled: ${oldPlan} → ${target}`);
-    } else {
-      await upsertMembership({
-        userId,
-        plan: target,
-        billingInterval,
-        start,
-        end,
-        sub,
-        scheduledPlan: membership?.scheduled_plan ?? null,
-        scheduledAt: membership?.scheduled_plan_effective_at ?? null,
-      });
-    }
+  /* ✅ UPGRADE (immediate) */
+  if (
+    (oldPlan === "basic" && ["pro", "ultra"].includes(target)) ||
+    (oldPlan === "pro" && target === "ultra")
+  ) {
+    await resetPlanAndBalance(userId, target, plan.quota);
+    await upsertMembership({ userId, plan: target, billingInterval, start, end, sub });
+    console.log(`⬆️ Upgrade applied: ${oldPlan} → ${target}`);
   }
+
+  /* ✅ DOWNGRADE (scheduled via portal) */
+  else if (sub.cancel_at_period_end) {
+    const nextPlan = membership?.scheduled_plan ?? target;
+    await upsertMembership({
+      userId,
+      plan: oldPlan,
+      billingInterval,
+      start,
+      end,
+      sub,
+      scheduledPlan: nextPlan,
+      scheduledAt: end,
+    });
+    console.log(`⏳ Downgrade scheduled at period end: ${oldPlan} → ${nextPlan}`);
+  }
+
+  /* ✅ Normal plan update (immediate, same or resync) */
+  else {
+    await upsertMembership({
+      userId,
+      plan: target,
+      billingInterval,
+      start,
+      end,
+      sub,
+      scheduledPlan: membership?.scheduled_plan ?? null,
+      scheduledAt: membership?.scheduled_plan_effective_at ?? null,
+    });
+    console.log(`🔄 Plan synced: ${oldPlan} → ${target}`);
+  }
+}
 
   /* ------------------------------------------------------------------------ */
   /* 4️⃣ invoice.paid → refill next cycle & apply downgrade if scheduled      */
