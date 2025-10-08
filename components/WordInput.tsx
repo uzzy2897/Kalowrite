@@ -44,6 +44,13 @@ export default function WordLimitEditor({
     },
   });
 
+  /* ✅ NEW: React to external `value` changes (like Clear button) */
+  useEffect(() => {
+    if (editor && value !== editor.getText()) {
+      editor.commands.setContent(value ? `<p>${value}</p>` : "<p></p>");
+    }
+  }, [value, editor]);
+
   useEffect(() => {
     if (!editor) return;
 
@@ -67,7 +74,6 @@ export default function WordLimitEditor({
           .setHighlight()
           .setTextSelection(currentPos) // Restore where user was typing
           .run();
-        
       }
     };
 
@@ -82,7 +88,7 @@ export default function WordLimitEditor({
 
   return (
     <div className="relative w-full h-[200px] border rounded-md bg-card text-foreground p-3 overflow-y-auto">
-      <EditorContent  className="tiptap"  editor={editor} />
+      <EditorContent className="tiptap" editor={editor} />
     </div>
   );
 }
