@@ -41,14 +41,21 @@ export default function Humanizepagee() {
     pro: 1500,
     ultra: 3000,
   };
+// ✅ Determine plan quota
+const quota = plan ? planQuotas[plan] ?? 500 : 500;
 
-  const quota = plan ? planQuotas[plan] ?? 500 : 500;
-  const percent =
-    balance !== null && quota > 0 ? Math.min((balance / balance) * 100, 100) : 0;
-  const color =
-    percent > 70 ? "bg-emerald-500" : percent > 30 ? "bg-yellow-500" : "bg-red-500";
+// ✅ Compute progress based on balance (remaining words)
+const percent =
+  balance !== null && quota > 0
+    ? Math.min((balance / quota) * 100, 100)
+    : 0;
 
-  const lowBalance = percent < 30;
+// ✅ Color logic
+const color =
+  percent > 70 ? "bg-emerald-500" : percent > 30 ? "bg-yellow-500" : "bg-red-500";
+
+const lowBalance = percent < 30;
+
   
 
   // ✅ Derived input word count
