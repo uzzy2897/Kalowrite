@@ -22,9 +22,9 @@ const plans = [
   {
     name: "Pro",
     slug: "pro",
-    monthlyPrice: "$19.99",
+    monthlyPrice: "$29.99",
     yearlyPrice: "$119.88", // $9.99/mo equivalent × 12 months
-    oldPrice: "$19.99",
+    oldPrice: "$29.99",
     discountedPrice: "$9.99",
     wordsPerMonth: "15,000 words per month",
     features: [
