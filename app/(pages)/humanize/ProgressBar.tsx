@@ -8,18 +8,27 @@ export default function ProgressBar({
   plan,
   balance,
   quota,
-  percent,
-  color,
-  lowBalance,
 }: {
   plan: string | null;
   balance: number | null;
   quota: number;
-  percent: number;
-  color: string;
-  lowBalance: boolean;
 }) {
   const hasBalance = balance !== null && balance > 0;
+  const percent =
+    balance && quota ? Math.min((balance / quota) * 100, 100) : 0;
+
+  // 🎨 Auto color logic
+  let color = "bg-emerald-500";
+  let lowBalance = false;
+
+  if (percent <= 10) {
+    color = "bg-red-500";
+    lowBalance = true;
+  } else if (percent <= 30) {
+    color = "bg-yellow-500";
+    lowBalance = true;
+  }
+
   const showUpgrade =
     (plan === "free" || plan === "basic" || plan === "pro") &&
     (lowBalance || !hasBalance);
@@ -65,6 +74,7 @@ export default function ProgressBar({
         )}
       </div>
 
+      {/* Progress Bar */}
       <div className="relative h-2 bg-muted rounded-full w-full overflow-hidden">
         <motion.div
           initial={{ width: 0 }}
