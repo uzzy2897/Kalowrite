@@ -6,12 +6,12 @@ export async function trackSignup(email?: string) {
   try {
     const eventId = uuidv4();
 
-    // 1️⃣ Fire browser pixel event for deduplication
+    // 1️⃣ Fire client-side Pixel (for dedup)
     if (typeof window !== "undefined" && window.fbq) {
       window.fbq("track", "CompleteRegistration", {}, { eventID: eventId });
     }
 
-    // 2️⃣ Send the same event to your server (for CAPI)
+    // 2️⃣ Send to your Next.js API (server-side CAPI)
     await fetch("/api/fb/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

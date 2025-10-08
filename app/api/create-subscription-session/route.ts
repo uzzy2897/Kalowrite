@@ -6,14 +6,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPriceId } from "@/lib/plans";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  // 💡 Ensure this API version is active in your Stripe dashboard and matches the version used in your webhook handler.
-  apiVersion: "2025-08-27.basil" 
+  apiVersion: "2025-08-27.basil",
 });
-
-// A helper function to safely check metadata size (Stripe limits it to 50 keys, 512 chars per value)
-const cleanFbCookie = (cookie: string | undefined): string => {
-    return cookie && cookie.length > 512 ? cookie.substring(0, 500) : cookie || '';
-}
 
 export async function POST(req: Request) {
   try {
@@ -25,13 +19,12 @@ export async function POST(req: Request) {
     const email = user.emailAddresses?.[0]?.emailAddress;
     if (!email) return NextResponse.json({ error: "Missing email" }, { status: 400 });
 
-    // 💡 CHANGE 1: Parse body, now expecting fbc and fbp from the client
-    const { plan, billing = "monthly", fbc, fbp } = await req.json();
-    
+    // ✅ Parse body
+    const { plan, billing = "monthly" } = await req.json();
     const priceId = getPriceId(plan, billing);
     if (!priceId) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
 
-    // ✅ Fetch or create customer (Existing logic remains)
+    // ✅ Fetch or create customer
     const { data: membership } = await supabaseAdmin
       .from("membership")
       .select("stripe_customer_id")
@@ -60,16 +53,9 @@ export async function POST(req: Request) {
       customer: stripeCustomerId,
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: {
-        metadata: { userId, plan, billing }, 
+        metadata: { userId, plan, billing }, // ✅ stored on subscription
       },
-      // 💡 CHANGE 2 & 3: Add fbc/fbp to the session metadata for the webhook
-      metadata: { 
-        userId, 
-        plan, 
-        billing,
-        fbc: cleanFbCookie(fbc), // Add Facebook Click ID
-        fbp: cleanFbCookie(fbp), // Add Facebook Browser ID
-      },
+      metadata: { userId, plan, billing },
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/humanize?success=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
     });

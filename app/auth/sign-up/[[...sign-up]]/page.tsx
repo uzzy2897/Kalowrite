@@ -10,9 +10,12 @@ export default function SignUpPage() {
   const [redirectUrl, setRedirectUrl] = useState("/");
 
   useEffect(() => {
-    const url = searchParams.get("redirect_url"); // 👈 same param
+    const url = searchParams.get("redirect_url");
     if (url && typeof window !== "undefined") {
       setRedirectUrl(`${window.location.origin}${url}`);
+    } else {
+      // 👇 default redirect to success page
+      setRedirectUrl("/auth/sign-up/success");
     }
   }, [searchParams]);
 
@@ -22,7 +25,7 @@ export default function SignUpPage() {
         path="/auth/sign-up"
         routing="path"
         signInUrl="/auth/sign-in"
-        fallbackRedirectUrl="/"
+        fallbackRedirectUrl="/auth/sign-up/success"
         forceRedirectUrl={redirectUrl}
         appearance={{
           elements: {
