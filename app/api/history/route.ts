@@ -11,7 +11,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from("history")
-    .select("id, input_text, output_text, created_at, words_used")
+    .select("id, input_text, output_text, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(20);
