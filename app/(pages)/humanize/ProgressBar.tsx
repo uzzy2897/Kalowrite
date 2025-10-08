@@ -7,28 +7,32 @@ import { Button } from "@/components/ui/button";
 export default function ProgressBar({
   plan,
   balance,
-  quota,
+  lowBalance,
 }: {
   plan: string | null;
   balance: number | null;
-  quota: number;
+  lowBalance: boolean;
 }) {
-  const hasBalance = balance !== null && balance > 0;
-  const percent =
-    balance && quota ? Math.min((balance / quota) * 100, 100) : 0;
+  // ✅ 1️⃣ Define plan quotas
+  const planQuotas: Record<string, number> = {
+    free: 500,
+    basic: 500,
+    pro: 15000,
+    ultra: 30000,
+  };
 
-  // 🎨 Auto color logic
+  // ✅ 2️⃣ Resolve quota and percent
+  const quota = plan ? planQuotas[plan] || 500 : 500;
+  const percent = balance ? Math.min((balance / quota) * 100, 100) : 0;
+
+  // ✅ 3️⃣ Determine color dynamically
   let color = "bg-emerald-500";
-  let lowBalance = false;
+  if (percent < 10) color = "bg-red-500";
+  else if (percent < 30) color = "bg-yellow-500";
+  else if (percent < 60) color = "bg-amber-500";
 
-  if (percent <= 10) {
-    color = "bg-red-500";
-    lowBalance = true;
-  } else if (percent <= 30) {
-    color = "bg-yellow-500";
-    lowBalance = true;
-  }
-
+  // ✅ 4️⃣ Determine UI state
+  const hasBalance = balance !== null && balance > 0;
   const showUpgrade =
     (plan === "free" || plan === "basic" || plan === "pro") &&
     (lowBalance || !hasBalance);
@@ -74,7 +78,7 @@ export default function ProgressBar({
         )}
       </div>
 
-      {/* Progress Bar */}
+      {/* ✅ Progress bar */}
       <div className="relative h-2 bg-muted rounded-full w-full overflow-hidden">
         <motion.div
           initial={{ width: 0 }}
@@ -92,7 +96,7 @@ export default function ProgressBar({
 
       <p className="text-xs text-muted-foreground text-center">
         {balance !== null
-          ? `Using up to ${quota.toLocaleString()} words of your ${plan} plan`
+          ? `Using up to ${quota.toLocaleString()} words of your ${plan || "free"} plan`
           : "Loading..."}
       </p>
     </motion.div>
