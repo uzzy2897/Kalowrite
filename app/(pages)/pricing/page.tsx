@@ -251,8 +251,18 @@ export default function PricingPage() {
           const isScheduled = scheduledPlan === plan.slug;
           const currentIndex = planOrder.indexOf(currentPlan);
           const targetIndex = planOrder.indexOf(plan.slug);
-          const isUpgrade = targetIndex > currentIndex;
           const priceText = billing === "monthly" ? plan.monthlyPrice : plan.yearlyPrice;
+
+          // 🧠 Determine upgrade or downgrade
+          let isUpgrade = targetIndex > currentIndex;
+
+          // Handle billing interval changes on same plan
+          if (currentPlan === plan.slug && currentBilling === "monthly" && billing === "yearly") {
+            isUpgrade = true; // yearly is more expensive
+          }
+          if (currentPlan === plan.slug && currentBilling === "yearly" && billing === "monthly") {
+            isUpgrade = false; // monthly is cheaper
+          }
 
           return (
             <motion.div
@@ -314,7 +324,13 @@ export default function PricingPage() {
                   disabled={loadingAction === "portal"}
                   className="mt-auto px-6 py-3 bg-muted text-foreground hover:bg-muted/80 rounded-md transition-colors disabled:opacity-50"
                 >
-                  {loadingAction === "portal" ? <Loader2 className="animate-spin mx-auto" /> : isUpgrade ? "Upgrade" : "Downgrade"}
+                  {loadingAction === "portal" ? (
+                    <Loader2 className="animate-spin mx-auto" />
+                  ) : isUpgrade ? (
+                    "Upgrade"
+                  ) : (
+                    "Downgrade"
+                  )}
                 </button>
               )}
             </motion.div>
