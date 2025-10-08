@@ -21,9 +21,10 @@ export default function ProgressBar({
     ultra: 30000,
   };
 
-  // ✅ 2️⃣ Resolve quota and percent
+  // ✅ 2️⃣ Resolve quota safely and compute percent
   const quota = plan ? planQuotas[plan] || 500 : 500;
-  const percent = balance ? Math.min((balance / quota) * 100, 100) : 0;
+  const numericBalance = Number(balance) || 0;
+  const percent = Math.min((numericBalance / quota) * 100, 100);
 
   // ✅ 3️⃣ Determine color dynamically
   let color = "bg-emerald-500";
@@ -32,7 +33,7 @@ export default function ProgressBar({
   else if (percent < 60) color = "bg-amber-500";
 
   // ✅ 4️⃣ Determine UI state
-  const hasBalance = balance !== null && balance > 0;
+  const hasBalance = numericBalance > 0;
   const showUpgrade =
     (plan === "free" || plan === "basic" || plan === "pro") &&
     (lowBalance || !hasBalance);
@@ -46,7 +47,7 @@ export default function ProgressBar({
         <div className="flex gap-2 items-center">
           <Badge variant="secondary">{plan || "free"}</Badge>
           <Badge variant="outline">
-            {balance !== null ? `${balance.toLocaleString()} words left` : "…"}
+            {balance !== null ? `${numericBalance.toLocaleString()} words left` : "…"}
           </Badge>
         </div>
 
