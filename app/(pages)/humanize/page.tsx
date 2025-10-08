@@ -44,7 +44,7 @@ export default function Humanizepagee() {
 
   const quota = plan ? planQuotas[plan] ?? 500 : 500;
   const percent =
-    balance !== null && quota > 0 ? Math.min((balance / quota) * 100, 100) : 0;
+    balance !== null && quota > 0 ? Math.min((balance / balance) * 100, 100) : 0;
   const color =
     percent > 70 ? "bg-emerald-500" : percent > 30 ? "bg-yellow-500" : "bg-red-500";
 
