@@ -7,6 +7,8 @@ import { motion } from "framer-motion";
 import PlansGrid from "./PlansGrid";
 import BillingToggle from "./BillingToggle";
 import Header from "./Header";
+// 💡 Import the cookie helper
+import { getFbCookies } from "@/lib/facebook";
 
 
 export default function PricingPage() {
@@ -27,7 +29,7 @@ export default function PricingPage() {
   const planOrder = ["free", "basic", "pro", "ultra"];
 
   /* ---------------------------------------------------------------------- */
-  /* 📡 Fetch membership                                                    */
+  /* 📡 Fetch membership (No change)                                        */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
     const fetchMembership = async () => {
@@ -45,7 +47,7 @@ export default function PricingPage() {
   }, []);
 
   /* ---------------------------------------------------------------------- */
-  /* ♻️ Resume checkout after login                                         */
+  /* ♻️ Resume checkout after login (No change)                             */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
     const pendingPlan = localStorage.getItem("pending_plan");
@@ -56,11 +58,20 @@ export default function PricingPage() {
   }, [isSignedIn]);
 
   /* ---------------------------------------------------------------------- */
-  /* ⚡️ Subscribe                                                          */
+  /* ⚡️ Subscribe (MODIFIED)                                               */
   /* ---------------------------------------------------------------------- */
   const handleSubscribe = async (plan: string) => {
+    // 💡 1. Capture Facebook Cookies BEFORE checking auth or redirecting
+    const cookies = getFbCookies(); 
+    
     if (!isSignedIn) {
+      // If user isn't signed in, save the plan and cookies to localStorage
+      // so we can resume checkout after login.
       localStorage.setItem("pending_plan", plan);
+      // 💡 Store cookies temporarily for post-login resume
+      localStorage.setItem("pending_fbc", cookies.fbc); 
+      localStorage.setItem("pending_fbp", cookies.fbp);
+      
       openSignIn({
         afterSignInUrl: pathname,
         redirectUrl: pathname,
@@ -68,6 +79,17 @@ export default function PricingPage() {
       });
       return;
     }
+    
+    // 💡 2. Retrieve cookies if resuming after login
+    // This is important because the "resume checkout" logic relies on 
+    // the stored data if the user just signed in.
+    const fbc_data = localStorage.getItem("pending_fbc") || cookies.fbc;
+    const fbp_data = localStorage.getItem("pending_fbp") || cookies.fbp;
+
+    // Clean up temporary cookie storage
+    localStorage.removeItem("pending_fbc");
+    localStorage.removeItem("pending_fbp");
+
 
     setLoadingAction(plan);
     setMessage(null);
@@ -76,7 +98,13 @@ export default function PricingPage() {
       const res = await fetch("/api/create-subscription-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, billing }),
+        body: JSON.stringify({ 
+          plan, 
+          billing,
+          // 💡 3. Include Facebook data in the API request body
+          fbc: fbc_data, 
+          fbp: fbp_data,
+        }),
       });
 
       const data = await res.json();
@@ -90,7 +118,7 @@ export default function PricingPage() {
   };
 
   /* ---------------------------------------------------------------------- */
-  /* ⚙️ Manage billing (portal)                                             */
+  /* ⚙️ Manage billing (portal) (No change)                                 */
   /* ---------------------------------------------------------------------- */
   const handleManage = async () => {
     if (!isSignedIn) {
