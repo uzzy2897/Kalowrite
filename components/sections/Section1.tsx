@@ -5,7 +5,7 @@ const logos = [
   "/partner/logo2.png",
   "/partner/logo3.png",
   "/partner/logo4.png",
-  "/partner/logo7.png",
+  "/partner/winston.png",
 ];
 
 const PartOne = () => {
