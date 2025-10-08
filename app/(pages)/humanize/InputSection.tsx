@@ -12,6 +12,7 @@ export default function InputSection({
   loading,
   error,
   balance,
+  plan,
 }: {
   input: string;
   setInput: (value: string) => void;
@@ -19,11 +20,26 @@ export default function InputSection({
   loading: boolean;
   error?: string;
   balance: number | null;
+  plan: string | null;
 }) {
+  // 🧩 Define per-request limits by plan
+  const planLimits: Record<string, number> = {
+    free: 500,
+    basic: 500,
+    pro: 1500,
+    ultra: 3000,
+  };
+
+  const maxPerRequest = plan
+    ? planLimits[plan.toLowerCase()] ?? 500
+    : 500; // default for unknown plans
+
   const words = input.trim().split(/\s+/).filter(Boolean);
   const wordCount = words.length;
+
   const tooShort = wordCount > 0 && wordCount < 50;
-  const exceeded = wordCount > (balance || 0);
+  const exceeded = wordCount > maxPerRequest;
+  const noBalance = !balance || balance <= 0;
 
   // ✅ Clear handler
   const handleClear = () => setInput("");
@@ -38,7 +54,7 @@ export default function InputSection({
 
         {/* ✅ Editor */}
         <WordLimitEditor
-          wordLimit={balance || 0}
+          wordLimit={maxPerRequest}
           value={input}
           onChange={setInput}
         />
@@ -46,7 +62,7 @@ export default function InputSection({
         {/* ✅ Word counter + warnings */}
         <div className="flex justify-between items-center mt-2 text-sm">
           <p className="text-muted-foreground">
-            {wordCount} words / max {balance ?? 0}
+            {wordCount} words / max {maxPerRequest}
           </p>
 
           {tooShort && (
@@ -54,8 +70,11 @@ export default function InputSection({
           )}
           {exceeded && (
             <span className="text-destructive">
-              Word count exceeded (max {balance ?? 0})
+              Word count exceeded (max {maxPerRequest})
             </span>
+          )}
+          {noBalance && (
+            <span className="text-destructive">Insufficient word balance</span>
           )}
         </div>
 
@@ -76,7 +95,9 @@ export default function InputSection({
           <Button
             className="flex items-center gap-2"
             onClick={handleHumanize}
-            disabled={loading || !input.trim() || tooShort || exceeded}
+            disabled={
+              loading || !input.trim() || tooShort || exceeded || noBalance
+            }
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {loading
@@ -84,7 +105,9 @@ export default function InputSection({
               : tooShort
               ? "Min 50 words required"
               : exceeded
-              ? `Limit exceeded (${balance ?? 0})`
+              ? `Limit exceeded (${maxPerRequest})`
+              : noBalance
+              ? "No credits left"
               : "Humanize"}
           </Button>
         </div>

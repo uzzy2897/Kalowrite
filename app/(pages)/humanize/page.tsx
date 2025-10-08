@@ -171,14 +171,16 @@ export default function Humanizepagee() {
 
       {/* Input / Output */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <InputSection
-          input={input}
-          setInput={setInput}
-          handleHumanize={handleHumanize}
-          loading={loading}
-          error={error}
-          balance={balance}
-        />
+      <InputSection
+  input={input}
+  setInput={setInput}
+  handleHumanize={handleHumanize}
+  loading={loading}
+  error={error}
+  balance={balance}
+  plan={plan} // ✅ added
+/>
+
         <OutputSection
           output={output}
           setOutput={setOutput}
