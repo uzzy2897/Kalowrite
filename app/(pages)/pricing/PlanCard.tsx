@@ -123,8 +123,8 @@ export default function PlanCard({
       {/* Features List */}
       <ul className="space-y-3 text-left">
         {plan.features.map((f: string, i: number) => (
-          <li key={i} className="flex items-center gap-2 text-zinc-400">
-            <CircleCheck className="h-5 text-zinc-500" /> {f}
+          <li key={i} className="flex items-center gap-2 text-zinc-200">
+            <CircleCheck className="h-5 text-emerald-500/70" /> {f}
           </li>
         ))}
       </ul>
