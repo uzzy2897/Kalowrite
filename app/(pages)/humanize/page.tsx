@@ -161,14 +161,13 @@ export default function Humanizepagee() {
       </motion.div>
 
       {/* Progress Bar */}
-      <ProgressBar
-        plan={plan}
-        balance={balance}
-        quota={quota}
-        percent={percent}
-        color={color}
-        lowBalance={lowBalance}
-      />
+    {/* ✅ Simplified Progress Bar */}
+<ProgressBar
+  plan={plan}
+  balance={balance}
+  lowBalance={lowBalance}
+/>
+
 
       {/* Input / Output */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
