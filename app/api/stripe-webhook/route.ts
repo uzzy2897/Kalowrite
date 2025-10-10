@@ -169,15 +169,33 @@ export async function POST(req: Request) {
     /* 📣 FACEBOOK CAPI (NON-BLOCKING)                                           */
     /* -------------------------------------------------------------------------- */
     try {
+      // 🧠 Get FB cookies for better event matching
+      const fbp = document.cookie.match(/_fbp=([^;]+)/)?.[1];
+      const fbc = document.cookie.match(/_fbc=([^;]+)/)?.[1];
+    
+      // 🧱 Build full payload for Purchase CAPI event
       const fbPayload = {
-        eventId: session.id,
+        eventId: session.id, // Unique event/session ID (used for deduplication)
         email: session.customer_details?.email,
-
+        value: session.amount_total ? session.amount_total / 100 : 0, // Convert cents to dollars
+        currency: session.currency?.toUpperCase() || "USD",
         url: process.env.NEXT_PUBLIC_SITE_URL || "https://kalowrite.com",
+    
+        // Optional advanced matching parameters
+        fbp,
+        fbc,
+        external_id: session.customer_details?.email, // or your internal user ID
+        // phone: customer_phone || undefined,
+        // fn: customer_first_name || undefined,
+        // ln: customer_last_name || undefined,
+        // ct: customer_city || undefined,
+        // st: customer_state || undefined,
+        // zip: customer_zip || undefined,
+        // dob: customer_birthdate || undefined,
       };
-  
-      // Fire & forget → don't await to avoid blocking Stripe
-      fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/facebook-capi`, {
+    
+      // 🚀 Fire & forget (don’t await to keep Stripe fast)
+      fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/fb/purchase`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fbPayload),
@@ -185,6 +203,7 @@ export async function POST(req: Request) {
     } catch (err) {
       console.warn("⚠️ Facebook CAPI error:", err);
     }
+    
   }
   
   /* ------------------------------------------------------------------------ */

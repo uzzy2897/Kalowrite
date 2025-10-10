@@ -6,6 +6,15 @@ import { useRouter } from "next/navigation";
 import { trackSignup } from "@/lib/fb/trackSignup";
 
 /* -------------------------------------------------------------------------- */
+/* ✅ Helper: check user consent (optional, if you have cookie banner)        */
+/* -------------------------------------------------------------------------- */
+function canTrack() {
+  if (typeof window === "undefined") return false;
+  const consent = localStorage.getItem("fb_consent"); // optional: your cookie consent key
+  return consent === "true" || !consent; // allow if accepted or not required
+}
+
+/* -------------------------------------------------------------------------- */
 /* ✅ Page Component                                                          */
 /* -------------------------------------------------------------------------- */
 export default function SignupSuccessPage() {
@@ -20,14 +29,27 @@ export default function SignupSuccessPage() {
         return;
       }
 
-      // 👇 Prevent sending the event twice in one session
-      const tracked = sessionStorage.getItem("fb_signup_tracked");
-      if (!tracked) {
-        await trackSignup(email);
-        sessionStorage.setItem("fb_signup_tracked", "true");
+      // ⚙️ Optional consent check
+      if (!canTrack()) {
+        console.log("⚠️ Tracking skipped (no consent)");
+        router.push("/humanize");
+        return;
       }
 
-      // 🚀 Redirect after short delay (for reliability)
+      // 👇 Prevent sending twice per session
+      const tracked = sessionStorage.getItem("fb_signup_tracked");
+      if (!tracked) {
+        try {
+          // 🧠 Send both Pixel + CAPI
+          await trackSignup(email);
+          sessionStorage.setItem("fb_signup_tracked", "true");
+          console.log("✅ Facebook signup tracked successfully");
+        } catch (err) {
+          console.warn("⚠️ Facebook signup tracking failed:", err);
+        }
+      }
+
+      // ⏳ Redirect after short delay for reliability
       setTimeout(() => router.push("/humanize"), 600);
     };
 
