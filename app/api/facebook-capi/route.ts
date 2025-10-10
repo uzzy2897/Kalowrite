@@ -14,14 +14,7 @@ function sha256(str?: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    // Expecting purchase-related data only
-    const {
-      eventId,
-      email,
-      url,
-      value, // 💵 total purchase amount
-      currency, // e.g. "USD", "MAD", "EUR"
-    } = await req.json();
+    const { eventId, email, url, value, currency } = await req.json();
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "";
     const userAgent = req.headers.get("user-agent") || "";
@@ -29,7 +22,7 @@ export async function POST(req: NextRequest) {
     const payload = {
       data: [
         {
-          event_name: "Purchase", // fixed: purchase only
+          event_name: "Purchase",
           event_time: Math.floor(Date.now() / 1000),
           event_id: eventId,
           action_source: "website",
@@ -58,9 +51,19 @@ export async function POST(req: NextRequest) {
     );
 
     const json = await response.json();
+
+    // ✅ Add success log here
+    console.log("✅ [FB CAPI] Purchase logged successfully:", {
+      eventId,
+      email,
+      value,
+      currency,
+      fbResponse: json,
+    });
+
     return NextResponse.json({ success: true, fbResponse: json });
   } catch (error: any) {
-    console.error("FB CAPI Purchase error:", error);
+    console.error("❌ [FB CAPI] Purchase error:", error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
