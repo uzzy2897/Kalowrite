@@ -2,23 +2,29 @@
 
 import { v4 as uuidv4 } from "uuid";
 
+function getFbCookies() {
+  const fbp = document.cookie.match(/_fbp=([^;]+)/)?.[1];
+  const fbc = document.cookie.match(/_fbc=([^;]+)/)?.[1];
+  return { fbp, fbc };
+}
 export async function trackSignup(email?: string) {
   try {
     const eventId = uuidv4();
+    const { fbp, fbc } = getFbCookies();
 
-    // 1️⃣ Fire client-side Pixel (for dedup)
     if (typeof window !== "undefined" && window.fbq) {
       window.fbq("track", "CompleteRegistration", {}, { eventID: eventId });
     }
 
-    // 2️⃣ Send to your Next.js API (server-side CAPI)
     await fetch("/api/fb/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         eventId,
         email,
-        url: typeof window !== "undefined" ? window.location.href : "",
+        url: window?.location.href || "",
+        fbp,
+        fbc,
       }),
     });
   } catch (err) {
