@@ -5,7 +5,7 @@ const FB_PIXEL_ID = process.env.FB_PIXEL_ID!;
 const FB_ACCESS_TOKEN = process.env.FB_ACCESS_TOKEN!;
 const FB_TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE;
 
-// Helper: SHA256 hash for privacy-safe matching
+// 🔒 Helper: SHA256 hash for privacy-safe matching
 function sha256(str?: string) {
   return str
     ? crypto.createHash("sha256").update(str.trim().toLowerCase()).digest("hex")
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "";
     const userAgent = req.headers.get("user-agent") || "";
 
-    // 🔒 Build user_data with hashed fields where required
+    // 🔒 Build user_data with hashed fields
     const user_data: Record<string, any> = {
       client_ip_address: ip,
       client_user_agent: userAgent,
@@ -76,9 +76,27 @@ export async function POST(req: NextRequest) {
     );
 
     const json = await response.json();
+
+    // ✅ Success log
+    console.log(
+      `${new Date().toISOString()} [info] ✅ [FB CAPI] Event sent successfully:`,
+      {
+        event_name: "CompleteRegistration",
+        eventId,
+        email,
+        url,
+        fbtrace_id: json.fbtrace_id,
+        events_received: json.events_received,
+        messages: json.messages,
+      }
+    );
+
     return NextResponse.json({ success: true, fbResponse: json });
   } catch (error: any) {
-    console.error("FB CAPI error:", error);
+    console.error(
+      `${new Date().toISOString()} [error] ❌ [FB CAPI] Event failed:`,
+      error
+    );
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
