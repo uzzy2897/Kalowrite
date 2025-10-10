@@ -27,7 +27,7 @@ export default function PurchaseSuccessPage() {
           }, { eventID: eventId });
         }
 
-        await fetch("/api/fb/purchase", {
+        await fetch("/api/facebook-capi", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
