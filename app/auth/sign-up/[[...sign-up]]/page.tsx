@@ -15,7 +15,7 @@ export default function SignUpPage() {
       setRedirectUrl(`${window.location.origin}${url}`);
     } else {
       // 👇 default redirect to success page
-      setRedirectUrl("/auth/sign-up/success");
+      setRedirectUrl("/auth/success");
     }
   }, [searchParams]);
 
