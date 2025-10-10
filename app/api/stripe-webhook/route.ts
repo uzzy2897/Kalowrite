@@ -171,7 +171,8 @@ export async function POST(req: Request) {
     try {
       const fbPayload = {
         eventId: session.id,
-        email: session.customer_email,
+        email: session.customer_details?.email,
+
         url: process.env.NEXT_PUBLIC_SITE_URL || "https://kalowrite.com",
       };
   
