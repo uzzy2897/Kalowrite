@@ -179,7 +179,7 @@ export async function POST(req: Request) {
       };
     
       // 🚀 Fire & forget
-      fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/fb/purchase`, {
+      fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/facebook-capi`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fbPayload),
