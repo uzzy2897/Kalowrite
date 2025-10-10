@@ -1,4 +1,3 @@
-// /api/fb/purchase/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
@@ -6,15 +5,22 @@ const FB_PIXEL_ID = process.env.FB_PIXEL_ID!;
 const FB_ACCESS_TOKEN = process.env.FB_ACCESS_TOKEN!;
 const FB_TEST_EVENT_CODE = process.env.FB_TEST_EVENT_CODE;
 
+/* -------------------------------------------------------------------------- */
+/* 🔒 Hash helper for user data                                               */
+/* -------------------------------------------------------------------------- */
 function sha256(str?: string) {
   return str
     ? crypto.createHash("sha256").update(str.trim().toLowerCase()).digest("hex")
     : undefined;
 }
 
+/* -------------------------------------------------------------------------- */
+/* 🚀 Facebook Purchase Event Endpoint                                        */
+/* -------------------------------------------------------------------------- */
 export async function POST(req: NextRequest) {
   try {
     const { eventId, email, url, fbc, fbp, value, currency } = await req.json();
+
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "";
     const userAgent = req.headers.get("user-agent") || "";
 
@@ -53,16 +59,27 @@ export async function POST(req: NextRequest) {
 
     const json = await response.json();
 
-    console.log("✅ [FB CAPI] Purchase sent:", {
-      eventId,
+    /* 🧭 Log details in terminal for debugging */
+    console.log("🎯 [FB CAPI] Purchase event sent successfully!");
+    console.log({
+      event_name: "Purchase",
+      event_id: eventId,
       email,
       value,
+      currency,
       fbtrace_id: json.fbtrace_id,
+      response_status: response.status,
     });
 
-    return NextResponse.json({ success: true, fbResponse: json });
+    return NextResponse.json({
+      success: true,
+      fbResponse: json,
+    });
   } catch (error: any) {
-    console.error("❌ [FB CAPI] Purchase failed:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    console.error("❌ [FB CAPI] Purchase failed:", error.message);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
 }
