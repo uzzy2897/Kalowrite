@@ -127,22 +127,28 @@ export async function POST(req: Request) {
     const session = event.data.object as Stripe.Checkout.Session;
     const userId = session.metadata?.userId;
     if (!userId) return new Response("Missing userId", { status: 400 });
-
+  
+    /* -------------------------------------------------------------------------- */
+    /* 🧾 SUBSCRIPTION HANDLER                                                   */
+    /* -------------------------------------------------------------------------- */
     if (session.mode === "subscription") {
       const sub = (await stripe.subscriptions.retrieve(
         session.subscription as string
       )) as Stripe.Subscription;
-
+  
       const { start, end } = getPeriod(sub);
       const billingInterval = getBillingInterval(sub);
       const plan = planFromPriceId(sub.items.data[0]?.price?.id);
       if (!plan) return new Response("Unknown plan", { status: 400 });
-
+  
       await upsertMembership({ userId, plan: plan.name, billingInterval, start, end, sub });
       await resetPlanAndBalance(userId, plan.name, plan.quota);
       console.log(`🆕 New subscription created for ${userId}`);
     }
-
+  
+    /* -------------------------------------------------------------------------- */
+    /* 💰 ONE-TIME PAYMENT (TOP-UP)                                              */
+    /* -------------------------------------------------------------------------- */
     if (session.mode === "payment") {
       const words = parseInt(session.metadata?.words || "0", 10);
       await supabaseAdmin
@@ -158,8 +164,28 @@ export async function POST(req: Request) {
       await supabaseAdmin.rpc("increment_balance", { uid: userId, amount: words });
       console.log(`💰 Top-up → +${words} words for ${userId}`);
     }
+  
+    /* -------------------------------------------------------------------------- */
+    /* 📣 FACEBOOK CAPI (NON-BLOCKING)                                           */
+    /* -------------------------------------------------------------------------- */
+    try {
+      const fbPayload = {
+        eventId: session.id,
+        email: session.customer_email,
+        url: process.env.NEXT_PUBLIC_SITE_URL || "https://kalowrite.com",
+      };
+  
+      // Fire & forget → don't await to avoid blocking Stripe
+      fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/facebook-capi`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fbPayload),
+      }).catch((err) => console.warn("⚠️ Facebook CAPI call failed:", err));
+    } catch (err) {
+      console.warn("⚠️ Facebook CAPI error:", err);
+    }
   }
-
+  
   /* ------------------------------------------------------------------------ */
   /* 2️⃣ customer.subscription.created                                        */
   /* ------------------------------------------------------------------------ */
