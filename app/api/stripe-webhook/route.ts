@@ -169,32 +169,16 @@ export async function POST(req: Request) {
     /* 📣 FACEBOOK CAPI (NON-BLOCKING)                                           */
     /* -------------------------------------------------------------------------- */
     try {
-      // 🧠 Get FB cookies for better event matching
-      const fbp = document.cookie.match(/_fbp=([^;]+)/)?.[1];
-      const fbc = document.cookie.match(/_fbc=([^;]+)/)?.[1];
-    
-      // 🧱 Build full payload for Purchase CAPI event
       const fbPayload = {
-        eventId: session.id, // Unique event/session ID (used for deduplication)
+        eventId: session.id, // use the Stripe session.id as eventID
         email: session.customer_details?.email,
-        value: session.amount_total ? session.amount_total / 100 : 0, // Convert cents to dollars
+        value: session.amount_total ? session.amount_total / 100 : 0,
         currency: session.currency?.toUpperCase() || "USD",
         url: process.env.NEXT_PUBLIC_SITE_URL || "https://kalowrite.com",
-    
-        // Optional advanced matching parameters
-        fbp,
-        fbc,
-        external_id: session.customer_details?.email, // or your internal user ID
-        // phone: customer_phone || undefined,
-        // fn: customer_first_name || undefined,
-        // ln: customer_last_name || undefined,
-        // ct: customer_city || undefined,
-        // st: customer_state || undefined,
-        // zip: customer_zip || undefined,
-        // dob: customer_birthdate || undefined,
+        external_id: session.customer_details?.email,
       };
     
-      // 🚀 Fire & forget (don’t await to keep Stripe fast)
+      // 🚀 Fire & forget
       fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/fb/purchase`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -203,6 +187,7 @@ export async function POST(req: Request) {
     } catch (err) {
       console.warn("⚠️ Facebook CAPI error:", err);
     }
+    
     
   }
   
