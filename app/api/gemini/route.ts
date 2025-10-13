@@ -63,7 +63,7 @@ ${content}
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 1.8,
+            temperature: 2.0,
             topP: 0.9,
             topK: 40,
             maxOutputTokens: 32768,
