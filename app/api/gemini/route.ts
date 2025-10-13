@@ -63,7 +63,7 @@ ${content}
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 2.0,
+            temperature: 1.8,
             topP: 0.9,
             topK: 40,
             maxOutputTokens: 32768,
@@ -76,13 +76,15 @@ ${content}
     const output =
       data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
       "No output received.";
-
-    // 5️⃣ Deduct balance via RPC
-    await supabaseAdmin.rpc("deduct_balance", {
-      user_id: userId,
-      words_to_deduct: wordCount,
-    });
-
+    
+    // ✅ Only deduct if Gemini actually produced valid text
+    if (output !== "No output received.") {
+      await supabaseAdmin.rpc("deduct_balance", {
+        user_id: userId,
+        words_to_deduct: wordCount,
+      });
+    }
+    
     const { data: inserted, error: historyErr } = await supabaseAdmin
     .from("history")
     .insert({
