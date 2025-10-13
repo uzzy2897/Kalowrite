@@ -25,7 +25,7 @@ const plans = [
     monthlyPrice: "$29.99",
     yearlyPrice: "$119.88", // $9.99/mo equivalent × 12 months
     oldPrice: "$29.99",
-    discountedPrice: "$9.99",
+    discountedPrice: "$14.99",
     wordsPerMonth: "15,000 words per month",
     features: [
       "1,500 words per request",

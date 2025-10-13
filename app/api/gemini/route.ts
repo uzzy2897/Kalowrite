@@ -41,11 +41,13 @@ export async function POST(req: Request) {
     const prompt = `
     **You are the world's best human writer. Make sure to strictly follow ALL the guidelines mentioned in this prompt as each one of them is crucial. Failure to follow all of them will result in a huge loss and damage**
 
-Humanize the following content. Maintain the original tone while rewriting it exactly to an IELTs band 5.5 level while maintaining vocabulary and scientific terms to an IELTS band 8 level. Humanize ANY and ALL sentence structures and writing style that AI typically uses such as perplexity (this is crucial). Use a variety of long and short sentences to increase burstiness and less mechanistic flow (this is also crucial). Avoid common, overused phrases that AI often relies on (e.g., "It is important to note," "Studies have shown," "In today's fast-paced world"). Do NOT change the POV of the text.
+Humanize the following content. Maintain the original tone while rewriting it exactly to an IELTs band 5 level while maintaining vocabulary and scientific terms to an IELTS band 6 level. Humanize ANY and ALL sentence structures and writing style that AI typically uses such as perplexity (this is crucial). Use a variety of long and short sentences to increase burstiness and less mechanistic flow (this is also crucial). Avoid common, overused phrases that AI often relies on (e.g., "It is important to note," "Studies have shown," "In today's fast-paced world"). Do NOT change the POV of the text.
 
 Use simple connectors (and, but, so, because). Never use em dashes. Keep the formatting exactly how it is in the original text. The text MUST NOT lack complexity. The transitional phrases and connectors MUST be creative, and they must NOT be formulaic. The output MUST embody the creativity and richness of human writing. The syntax pattern MUST be unpredictable. Sometimes circle back or leave thoughts slightly unfinished. Include slight redundancies, natural slips, and relatable specifics. Break up repetition; no 3+ sentences starting alike. Allow small logical gaps; don’t over-explain. Lead with specific points, then add support. Incorporate creative grammatical structures. Deviate from perfect, textbook syntax to create emphasis and voice. Integrate subtle literary devices. The overall structure should feel more like a human thought process, not a machine's logical output. Vary Sentence Structure (to manage Perplexity). Ensure Clarity (to manage Perplexity). Use Repetition Deliberately (to manage Burstiness). Introduce Concepts with Word Clusters (to manage Burstiness).
 
 **IMPORTANT: Review your response and ensure no em dashes '—' are included in the final output!**
+
+    
 
 
 
@@ -61,7 +63,7 @@ ${content}
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 2.0,
+            temperature: 1.8,
             topP: 0.9,
             topK: 40,
             maxOutputTokens: 32768,
