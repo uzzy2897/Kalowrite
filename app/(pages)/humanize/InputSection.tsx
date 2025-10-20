@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, Zap, Sparkles } from "lucide-react";
 import WordLimitEditor from "@/components/WordInput";
 import {
   Select,
@@ -68,12 +68,39 @@ export default function InputSection({
             value={mode}
             onValueChange={(value) => setMode(value as "lite" | "pro")}
           >
-            <SelectTrigger className="w-[100px] h-8 text-sm">
-              <SelectValue placeholder="Mode" />
+            <SelectTrigger className="w-[140px] h-8 text-sm">
+              <SelectValue
+                placeholder="Select mode"
+                // ✅ Only show plain text for selected value
+              >
+                {mode === "lite" ? "Lite Mode" : "Pro Mode"}
+              </SelectValue>
             </SelectTrigger>
+
             <SelectContent>
-              <SelectItem value="lite">Lite</SelectItem>
-              <SelectItem value="pro">Pro</SelectItem>
+              <SelectItem value="lite">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Zap className="w-3.5 h-3.5 text-yellow-500" />
+                    Lite Mode
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Faster and more affordable — best for simple text.
+                  </p>
+                </div>
+              </SelectItem>
+
+              <SelectItem value="pro">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                    Pro Mode
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Best quality rewrite with natural tone and structure.
+                  </p>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>

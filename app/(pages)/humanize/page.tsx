@@ -10,6 +10,7 @@ import ProgressBar from "./ProgressBar";
 import InputSection from "./InputSection";
 import OutputSection from "./OutputSection";
 import HistorySection from "./HistorySection";
+import BestPracticesPopup from "./BestPracticesPopup";
 
 export default function Humanizepagee() {
   const { isSignedIn, isLoaded } = useUser();
@@ -24,18 +25,17 @@ export default function Humanizepagee() {
   const [plan, setPlan] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
-
   const [copied, setCopied] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [mode, setMode] = useState<"lite" | "pro">("lite");
 
+  // ✅ Plan quotas
   const planQuotas: Record<string, number> = {
     free: 500,
     basic: 500,
     pro: 1500,
     ultra: 3000,
   };
-
   const quota = plan ? planQuotas[plan] ?? 500 : 500;
   const percent =
     balance !== null && quota > 0 ? Math.min((balance / quota) * 100, 100) : 0;
@@ -82,13 +82,11 @@ export default function Humanizepagee() {
     try {
       const endpoint =
         mode === "pro" ? "/api/pro-humanize" : "/api/lite-humanize";
-
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: input }),
       });
-
       const data = await res.text();
 
       if (!res.ok) setError(data || "Something went wrong");
@@ -105,7 +103,6 @@ export default function Humanizepagee() {
 
   useEffect(() => {
     let ignore = false;
-
     const loadData = async () => {
       if (!isSignedIn) {
         setInitialLoading(false);
@@ -119,7 +116,6 @@ export default function Humanizepagee() {
         if (!ignore) setInitialLoading(false);
       }
     };
-
     if (isLoaded) loadData();
     return () => {
       ignore = true;
@@ -139,49 +135,53 @@ export default function Humanizepagee() {
     );
 
   return (
-    <main className="max-w-5xl mx-auto py-12 px-4 space-y-8">
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center"
-      >
-        <h1 className="text-3xl font-bold mb-2">Humanizer AI</h1>
-        <p className="text-muted-foreground">
-          Paste your text below and transform it into natural content.
-        </p>
-      </motion.div>
+    <>
+      {/* ✅ Popup Component */}
+      <BestPracticesPopup />
 
-      <ProgressBar plan={plan} balance={balance} lowBalance={lowBalance} />
+      <main className="max-w-5xl mx-auto py-12 px-4 space-y-8">
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          <h1 className="text-3xl font-bold mb-2">Humanizer AI</h1>
+          <p className="text-muted-foreground">
+            Paste your text below and transform it into natural content.
+          </p>
+        </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <InputSection
-          input={input}
-          setInput={setInput}
-          handleHumanize={handleHumanize}
-          loading={loading}
-          error={error}
-          balance={balance}
-          plan={plan}
-          mode={mode}
-          setMode={setMode}
+        <ProgressBar plan={plan} balance={balance} lowBalance={lowBalance} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <InputSection
+            input={input}
+            setInput={setInput}
+            handleHumanize={handleHumanize}
+            loading={loading}
+            error={error}
+            balance={balance}
+            plan={plan}
+            mode={mode}
+            setMode={setMode}
+          />
+          <OutputSection
+            output={output}
+            setOutput={setOutput}
+            handleHumanize={handleHumanize}
+            loading={loading}
+            copied={copied}
+            setCopied={setCopied}
+          />
+        </div>
+
+        <HistorySection
+          history={history}
+          clearHistory={clearHistory}
+          selectedItem={selectedItem}
+          setSelectedItem={setSelectedItem}
         />
-
-        <OutputSection
-          output={output}
-          setOutput={setOutput}
-          handleHumanize={handleHumanize}
-          loading={loading}
-          copied={copied}
-          setCopied={setCopied}
-        />
-      </div>
-
-      <HistorySection
-        history={history}
-        clearHistory={clearHistory}
-        selectedItem={selectedItem}
-        setSelectedItem={setSelectedItem}
-      />
-    </main>
+      </main>
+    </>
   );
 }
