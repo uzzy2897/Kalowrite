@@ -4,6 +4,13 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Loader2, Trash2 } from "lucide-react";
 import WordLimitEditor from "@/components/WordInput";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function InputSection({
   input,
@@ -13,6 +20,8 @@ export default function InputSection({
   error,
   balance,
   plan,
+  mode,
+  setMode,
 }: {
   input: string;
   setInput: (value: string) => void;
@@ -21,8 +30,9 @@ export default function InputSection({
   error?: string;
   balance: number | null;
   plan: string | null;
+  mode: "lite" | "pro";
+  setMode: (value: "lite" | "pro") => void;
 }) {
-  // 🧩 Define per-request limits by plan
   const planLimits: Record<string, number> = {
     free: 500,
     basic: 500,
@@ -32,7 +42,7 @@ export default function InputSection({
 
   const maxPerRequest = plan
     ? planLimits[plan.toLowerCase()] ?? 500
-    : 500; // default for unknown plans
+    : 500;
 
   const words = input.trim().split(/\s+/).filter(Boolean);
   const wordCount = words.length;
@@ -41,7 +51,6 @@ export default function InputSection({
   const exceeded = wordCount > maxPerRequest;
   const noBalance = !balance || balance <= 0;
 
-  // ✅ Clear handler
   const handleClear = () => setInput("");
 
   return (
@@ -50,7 +59,24 @@ export default function InputSection({
       className="transition-all duration-200"
     >
       <div className="bg-card p-4 h-96 space-y-4 border rounded-xl relative">
-        <h2 className="font-semibold text-lg">Your Content</h2>
+        {/* ✅ Header */}
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg">Your Content</h2>
+
+          {/* ✅ ShadCN Mode Selector */}
+          <Select
+            value={mode}
+            onValueChange={(value) => setMode(value as "lite" | "pro")}
+          >
+            <SelectTrigger className="w-[100px] h-8 text-sm">
+              <SelectValue placeholder="Mode" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="lite">Lite</SelectItem>
+              <SelectItem value="pro">Pro</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* ✅ Editor */}
         <WordLimitEditor
@@ -80,7 +106,6 @@ export default function InputSection({
 
         {/* ✅ Action buttons */}
         <div className="flex justify-end gap-2 pt-2">
-          {/* Clear */}
           <Button
             variant="outline"
             className="flex items-center gap-2"
@@ -91,7 +116,6 @@ export default function InputSection({
             Clear
           </Button>
 
-          {/* Humanize */}
           <Button
             className="flex items-center gap-2"
             onClick={handleHumanize}
@@ -113,7 +137,6 @@ export default function InputSection({
         </div>
       </div>
 
-      {/* ✅ Error message */}
       {error && (
         <p className="mt-4 text-destructive text-sm font-medium">{error}</p>
       )}

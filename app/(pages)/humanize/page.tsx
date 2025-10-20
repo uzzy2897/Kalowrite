@@ -5,13 +5,11 @@ import { Loader2 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+
 import ProgressBar from "./ProgressBar";
 import InputSection from "./InputSection";
 import OutputSection from "./OutputSection";
 import HistorySection from "./HistorySection";
-
-
-
 
 export default function Humanizepagee() {
   const { isSignedIn, isLoaded } = useUser();
@@ -29,6 +27,7 @@ export default function Humanizepagee() {
 
   const [copied, setCopied] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [mode, setMode] = useState<"lite" | "pro">("lite");
 
   const planQuotas: Record<string, number> = {
     free: 500,
@@ -40,17 +39,8 @@ export default function Humanizepagee() {
   const quota = plan ? planQuotas[plan] ?? 500 : 500;
   const percent =
     balance !== null && quota > 0 ? Math.min((balance / quota) * 100, 100) : 0;
-
-  const color =
-    percent > 70
-      ? "bg-emerald-500"
-      : percent > 30
-      ? "bg-yellow-500"
-      : "bg-red-500";
-
   const lowBalance = percent < 30;
 
-  // ✅ Fetch balance
   const fetchBalance = async () => {
     try {
       const res = await fetch("/api/user");
@@ -64,7 +54,6 @@ export default function Humanizepagee() {
     }
   };
 
-  // ✅ Fetch history
   const fetchHistory = async () => {
     try {
       const res = await fetch("/api/history");
@@ -75,7 +64,6 @@ export default function Humanizepagee() {
     }
   };
 
-  // ✅ Clear history
   const clearHistory = async () => {
     try {
       await fetch("/api/history", { method: "DELETE" });
@@ -85,7 +73,6 @@ export default function Humanizepagee() {
     }
   };
 
-  // ✅ Handle Humanize
   const handleHumanize = async () => {
     if (!input.trim()) return;
     setLoading(true);
@@ -93,11 +80,15 @@ export default function Humanizepagee() {
     setOutput("");
 
     try {
-      const res = await fetch("/api/gemini", {
+      const endpoint =
+        mode === "pro" ? "/api/pro-humanize" : "/api/lite-humanize";
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: input }),
       });
+
       const data = await res.text();
 
       if (!res.ok) setError(data || "Something went wrong");
@@ -112,14 +103,15 @@ export default function Humanizepagee() {
     setLoading(false);
   };
 
-  // ✅ Load on mount
   useEffect(() => {
     let ignore = false;
+
     const loadData = async () => {
       if (!isSignedIn) {
         setInitialLoading(false);
         return;
       }
+
       try {
         await fetchBalance();
         await fetchHistory();
@@ -127,13 +119,13 @@ export default function Humanizepagee() {
         if (!ignore) setInitialLoading(false);
       }
     };
+
     if (isLoaded) loadData();
     return () => {
       ignore = true;
     };
   }, [isLoaded, isSignedIn]);
 
-  // ✅ Redirect if not signed in
   useEffect(() => {
     if (isLoaded && !isSignedIn)
       router.replace(`/auth/sign-in?redirect_url=${pathname}`);
@@ -148,7 +140,6 @@ export default function Humanizepagee() {
 
   return (
     <main className="max-w-5xl mx-auto py-12 px-4 space-y-8">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -160,26 +151,20 @@ export default function Humanizepagee() {
         </p>
       </motion.div>
 
-      {/* Progress Bar */}
-    {/* ✅ Simplified Progress Bar */}
-<ProgressBar
-  plan={plan}
-  balance={balance}
-  lowBalance={lowBalance}
-/>
+      <ProgressBar plan={plan} balance={balance} lowBalance={lowBalance} />
 
-
-      {/* Input / Output */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <InputSection
-  input={input}
-  setInput={setInput}
-  handleHumanize={handleHumanize}
-  loading={loading}
-  error={error}
-  balance={balance}
-  plan={plan} // ✅ added
-/>
+        <InputSection
+          input={input}
+          setInput={setInput}
+          handleHumanize={handleHumanize}
+          loading={loading}
+          error={error}
+          balance={balance}
+          plan={plan}
+          mode={mode}
+          setMode={setMode}
+        />
 
         <OutputSection
           output={output}
@@ -191,7 +176,6 @@ export default function Humanizepagee() {
         />
       </div>
 
-      {/* History */}
       <HistorySection
         history={history}
         clearHistory={clearHistory}
