@@ -10,37 +10,45 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
-export default function BestPracticesPopup() {
-  const [showPopup, setShowPopup] = useState(false);
+export default function BestPracticesPopup({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: (open: boolean) => void;
+}) {
+  const [autoShow, setAutoShow] = useState(false);
 
-  // ✅ Show popup for first 3 visits
+  // ✅ Show popup automatically for first 3 visits
   useEffect(() => {
     const popupCount = Number(localStorage.getItem("humanize_popup_count") || 0);
-    if (popupCount < 3) setShowPopup(true);
+    if (popupCount < 3) {
+      setAutoShow(true);
+      localStorage.setItem("humanize_popup_count", String(popupCount + 1));
+    }
   }, []);
 
-  const handleClosePopup = () => {
-    const popupCount = Number(localStorage.getItem("humanize_popup_count") || 0);
-    localStorage.setItem("humanize_popup_count", String(popupCount + 1));
-    setShowPopup(false);
+  const handleClose = () => {
+    setAutoShow(false);
+    onClose(false);
   };
 
+  const shouldShow = open || autoShow;
+
   return (
-    <Dialog open={showPopup} onOpenChange={setShowPopup}>
+    <Dialog open={shouldShow} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg bg-card">
         <DialogHeader>
           <DialogTitle className="text-lg font-bold text-emerald-700">
             Best Practices (Important)
           </DialogTitle>
 
-          {/* ✅ Use DialogDescription only for short paragraph */}
           <DialogDescription className="text-sm text-muted-foreground">
             Please follow these instructions if you want the best possible
             humanized output.
           </DialogDescription>
         </DialogHeader>
 
-        {/* ✅ Move lists outside of DialogDescription for valid HTML */}
         <div className="text-sm text-muted-foreground space-y-3 mt-3">
           <ul className="list-disc pl-5 space-y-2 text-left">
             <li>
@@ -66,7 +74,7 @@ export default function BestPracticesPopup() {
 
         <Button
           className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-          onClick={handleClosePopup}
+          onClick={handleClose}
         >
           I UNDERSTAND
         </Button>

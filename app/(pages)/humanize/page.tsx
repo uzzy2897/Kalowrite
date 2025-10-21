@@ -11,11 +11,14 @@ import InputSection from "./InputSection";
 import OutputSection from "./OutputSection";
 import HistorySection from "./HistorySection";
 import BestPracticesPopup from "./BestPracticesPopup";
+import Link from "next/link";
 
 export default function Humanizepagee() {
   const { isSignedIn, isLoaded } = useUser();
   const router = useRouter();
   const pathname = usePathname();
+  const [showPopup, setShowPopup] = useState(false);
+
 
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
@@ -137,7 +140,8 @@ export default function Humanizepagee() {
   return (
     <>
       {/* ✅ Popup Component */}
-      <BestPracticesPopup />
+      <BestPracticesPopup open={showPopup} onClose={setShowPopup} />
+
 
       <main className="max-w-5xl mx-auto py-12 px-4 space-y-8">
         <motion.div
@@ -149,6 +153,10 @@ export default function Humanizepagee() {
           <p className="text-muted-foreground">
             Paste your text below and transform it into natural content.
           </p>
+          <button
+          onClick={() => setShowPopup(true)}
+          className="text-emerald-500 hover:underline">View <span>Best practices</span>
+          </button>
         </motion.div>
 
         <ProgressBar plan={plan} balance={balance} lowBalance={lowBalance} />

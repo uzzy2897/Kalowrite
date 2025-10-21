@@ -81,11 +81,11 @@ export default function InputSection({
               <SelectItem value="lite">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2 font-semibold">
-                    <Zap className="w-3.5 h-3.5 text-yellow-500" />
+                   
                     Lite Mode
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Faster and more affordable — best for simple text.
+                  Simplified and basic level writing.
                   </p>
                 </div>
               </SelectItem>
@@ -93,11 +93,11 @@ export default function InputSection({
               <SelectItem value="pro">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2 font-semibold">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                  
                     Pro Mode
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Best quality rewrite with natural tone and structure.
+                  Advance academic level writing.
                   </p>
                 </div>
               </SelectItem>
