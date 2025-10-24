@@ -8,7 +8,7 @@ import Footer from "@/components/sections/Footer";
 import { ThemeProvider } from "@/components/theme-provider";
 import CookieBanner from "@/components/sections/CookieBanner";
 import { dark } from "@clerk/themes";
-
+import Script from "next/script"; // ✅ Added for Google Analytics
 
 /* -------------------- Fonts -------------------- */
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -57,6 +57,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const pixelId = process.env.NEXT_PUBLIC_FB_PIXEL_ID;
+
   return (
     <ClerkProvider
       appearance={{
@@ -67,28 +68,28 @@ export default function RootLayout({
       }}
     >
       <html lang="en" className="dark" suppressHydrationWarning>
-      <head>
-        {/* Facebook Meta Pixel Code */}
-        {pixelId && (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                !function(f,b,e,v,n,t,s)
-                {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-                n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-                n.queue=[];t=b.createElement(e);t.async=!0;
-                t.src=v;s=b.getElementsByTagName(e)[0];
-                s.parentNode.insertBefore(t,s)}(window, document,'script',
-                'https://connect.facebook.net/en_US/fbevents.js');
-                fbq('init', '${pixelId}');
-                fbq('track', 'PageView');
-              `,
-            }}
-          />
-        )}
-        {/* End Facebook Meta Pixel Code */}
-      </head>
+        <head>
+          {/* 🟦 Facebook Meta Pixel Code */}
+          {pixelId && (
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
+                  !function(f,b,e,v,n,t,s)
+                  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                  n.queue=[];t=b.createElement(e);t.async=!0;
+                  t.src=v;s=b.getElementsByTagName(e)[0];
+                  s.parentNode.insertBefore(t,s)}(window, document,'script',
+                  'https://connect.facebook.net/en_US/fbevents.js');
+                  fbq('init', '${pixelId}');
+                  fbq('track', 'PageView');
+                `,
+              }}
+            />
+          )}
+          {/* End Facebook Meta Pixel Code */}
+        </head>
         <body
           className={`${dmSans.variable} ${geistSans.variable} ${geistMono.variable} bg-stone-950 antialiased`}
         >
@@ -98,7 +99,6 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-    
             <Navbar />
             {children}
             <Footer />
@@ -106,6 +106,20 @@ export default function RootLayout({
 
           {/* ✅ Cookie Consent + Analytics Loader */}
           <CookieBanner />
+
+          {/* ✅ Google Analytics 4 */}
+          <Script
+            src="https://www.googletagmanager.com/gtag/js?id=G-N337Q74SB4"
+            strategy="afterInteractive"
+          />
+          <Script id="google-analytics" strategy="afterInteractive">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-N337Q74SB4');
+            `}
+          </Script>
         </body>
       </html>
     </ClerkProvider>
