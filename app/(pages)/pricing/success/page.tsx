@@ -2,29 +2,33 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { trackPurchaseGA } from "@/lib/ga/trackPurchase";
 
 export default function PurchaseSuccessPage() {
   useEffect(() => {
     const trackPurchase = async () => {
       try {
-        // ✅ Example: retrieve session data from query params or your backend
         const sessionId = new URLSearchParams(window.location.search).get("session_id");
-
         if (!sessionId) return;
 
-        // Optionally, fetch from your backend
         const res = await fetch(`/api/stripe/session?session_id=${sessionId}`);
         const session = await res.json();
 
+        const value = session.amount_total / 100;
+        const currency = session.currency?.toUpperCase();
+        const eventId = session.id;
+
+        /* ---------------- Facebook Pixel + CAPI ---------------- */
         const fbp = document.cookie.match(/_fbp=([^;]+)/)?.[1];
         const fbc = document.cookie.match(/_fbc=([^;]+)/)?.[1];
 
-        const eventId = session.id;
         if (window.fbq) {
-          window.fbq("track", "Purchase", {
-            value: session.amount_total / 100,
-            currency: session.currency?.toUpperCase(),
-          }, { eventID: eventId });
+          window.fbq(
+            "track",
+            "Purchase",
+            { value, currency },
+            { eventID: eventId }
+          );
         }
 
         await fetch("/api/facebook-capi", {
@@ -33,17 +37,32 @@ export default function PurchaseSuccessPage() {
           body: JSON.stringify({
             eventId,
             email: session.customer_details?.email,
-            value: session.amount_total / 100,
-            currency: session.currency?.toUpperCase(),
+            value,
+            currency,
             url: window.location.href,
             fbp,
             fbc,
           }),
         });
 
-        console.log("✅ Purchase tracked (browser + CAPI)");
+        /* ---------------- Google Analytics ---------------- */
+        trackPurchaseGA({
+          transactionId: eventId,
+          value,
+          currency,
+          items: [
+            {
+              item_id: session.metadata?.product_id || "unknown",
+              item_name: session.metadata?.product_name || "Unknown Product",
+              price: value,
+              quantity: 1,
+            },
+          ],
+        });
+
+        console.log("✅ Purchase tracked (FB + GA)");
       } catch (err) {
-        console.error("⚠️ Facebook client tracking failed:", err);
+        console.error("⚠️ Purchase tracking failed:", err);
       }
     };
 
