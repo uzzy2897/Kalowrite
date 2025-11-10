@@ -187,6 +187,50 @@ export async function POST(req: Request) {
     } catch (err) {
       console.warn("⚠️ Facebook CAPI error:", err);
     }
+
+    /* -------------------------------------------------------------------------- */
+    /* 📊 GA4 PURCHASE TRACKING (SERVER-SIDE)                                     */
+    /* -------------------------------------------------------------------------- */
+    const GA4_MEASUREMENT_ID = "G-N337Q74SB4";
+    const GA4_API_SECRET = process.env.GA4_API_SECRET;
+
+    if (GA4_API_SECRET) {
+      try {
+        const purchasePayload = {
+          client_id: session.client_reference_id || userId,
+          events: [
+            {
+              name: "purchase",
+              params: {
+                transaction_id: session.id,
+                value: (session.amount_total || 0) / 100,
+                currency: session.currency?.toUpperCase() || "USD",
+                items: [
+                  {
+                    item_id: session.metadata?.plan || (session.mode === "payment" ? "topup" : "subscription"),
+                    item_name: session.metadata?.plan || (session.mode === "payment" ? "Top-up" : "Subscription"),
+                    price: (session.amount_total || 0) / 100,
+                    quantity: 1,
+                  },
+                ],
+              },
+            },
+          ],
+        };
+
+        // 🚀 Fire & forget
+        await fetch(
+          `https://www.google-analytics.com/mp/collect?measurement_id=${GA4_MEASUREMENT_ID}&api_secret=${GA4_API_SECRET}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(purchasePayload),
+          }
+        ).catch((err) => console.error("⚠️ GA4 tracking failed:", err));
+      } catch (err) {
+        console.warn("⚠️ GA4 tracking error:", err);
+      }
+    }
     
     
   }

@@ -7,24 +7,97 @@ export default function CookieBanner() {
   const [consent, setConsent] = useState<string | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("cookie_consent");
-    if (!saved) setVisible(true);
-    else {
-      setConsent(saved);
-      if (saved === "accepted") loadAllScripts();
-    }
+    // Load Cookiebot script first
+    loadCookiebot();
+
+    // Set up geo-targeting after Cookiebot loads
+    const setupGeoTargeting = () => {
+      if (typeof (window as any).Cookiebot === "undefined") {
+        // Retry if Cookiebot not loaded yet
+        setTimeout(setupGeoTargeting, 100);
+        return;
+      }
+
+      const EU_COUNTRIES =
+        "AT|BE|BG|CY|CZ|DE|DK|EE|ES|FI|FR|GB|GR|HR|HU|IE|IT|LT|LU|LV|MT|NL|PL|PT|RO|SE|SI|SK";
+
+      // Listen for when Cookiebot dialog is about to display
+      (window as any).addEventListener("CookiebotOnDialogDisplay", function () {
+        const userCountry = (window as any).Cookiebot?.userCountry?.toUpperCase() || "";
+        const isEU = new RegExp(EU_COUNTRIES).test(userCountry);
+
+        if (!isEU) {
+          // Non-EU: auto-accept all cookies and hide banner
+          (window as any).Cookiebot?.submitCustomConsent(true, true, true);
+          setVisible(false);
+        } else {
+          // EU: show banner
+          const consent = (window as any).Cookiebot?.consent?.preferences || false;
+          if (!consent) {
+            setVisible(true);
+          }
+        }
+      });
+
+      // Check initial consent status
+      const checkConsent = () => {
+        const cookiebot = (window as any).Cookiebot;
+        if (cookiebot) {
+          const hasConsent = cookiebot.consent?.preferences || false;
+          if (hasConsent) {
+            setConsent("accepted");
+            setVisible(false);
+            loadAllScripts();
+          } else {
+            // Check if user is in EU
+            const userCountry = cookiebot.userCountry?.toUpperCase() || "";
+            const isEU = new RegExp(EU_COUNTRIES).test(userCountry);
+            if (isEU) {
+              setVisible(true);
+            }
+          }
+        } else {
+          // Retry if Cookiebot not ready
+          setTimeout(checkConsent, 100);
+        }
+      };
+
+      checkConsent();
+    };
+
+    // Wait a bit for Cookiebot to initialize
+    setTimeout(setupGeoTargeting, 500);
+
+    // Listen for consent changes
+    (window as any).addEventListener("CookiebotOnAccept", () => {
+      setConsent("accepted");
+      setVisible(false);
+      loadAllScripts();
+    });
+
+    (window as any).addEventListener("CookiebotOnDecline", () => {
+      setConsent("rejected");
+      setVisible(false);
+    });
   }, []);
 
-  const handleConsent = (value: "accepted" | "rejected") => {
-    localStorage.setItem("cookie_consent", value);
-    setConsent(value);
+  const handleAccept = () => {
+    if ((window as any).Cookiebot) {
+      (window as any).Cookiebot.submitCustomConsent(true, true, true);
+    }
+    setConsent("accepted");
     setVisible(false);
-    if (value === "accepted") loadAllScripts();
+    loadAllScripts();
+  };
+
+  const handleManageCookies = () => {
+    if ((window as any).Cookiebot) {
+      (window as any).Cookiebot.show();
+    }
   };
 
   /** ✅ Load all scripts after consent */
   const loadAllScripts = () => {
-    loadCookiebot();
     loadGoogleAnalytics();
     loadMetaPixel();
   };
@@ -95,20 +168,21 @@ export default function CookieBanner() {
     <div className="fixed bottom-4 inset-x-4 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-gray-700 p-4 rounded-lg shadow-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 z-50">
       <p className="text-sm text-gray-700 dark:text-gray-300">
         🍪 We use cookies to enhance your experience, improve performance, and for analytics.{" "}
-        <a href="/privacy" className="text-emerald-600 hover:underline">
-          Learn more
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            handleManageCookies();
+          }}
+          className="text-emerald-600 hover:underline"
+        >
+          Manage your cookies and learn more
         </a>
         .
       </p>
       <div className="flex gap-2">
         <button
-          onClick={() => handleConsent("rejected")}
-          className="px-3 py-1.5 text-sm border rounded-md hover:bg-gray-100 dark:hover:bg-neutral-800 transition"
-        >
-          Reject
-        </button>
-        <button
-          onClick={() => handleConsent("accepted")}
+          onClick={handleAccept}
           className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition"
         >
           Accept
@@ -124,5 +198,15 @@ declare global {
     dataLayer: any[];
     fbq: (...args: any[]) => void;
     GA_INITIALIZED?: boolean;
+    Cookiebot?: {
+      userCountry?: string;
+      consent?: {
+        preferences?: boolean;
+        statistics?: boolean;
+        marketing?: boolean;
+      };
+      submitCustomConsent?: (preferences: boolean, statistics: boolean, marketing: boolean) => void;
+      show?: () => void;
+    };
   }
 }

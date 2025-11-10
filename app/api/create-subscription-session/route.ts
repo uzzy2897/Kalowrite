@@ -56,6 +56,7 @@ export async function POST(req: Request) {
         metadata: { userId, plan, billing }, // ✅ stored on subscription
       },
       metadata: { userId, plan, billing },
+      allow_promotion_codes: true,
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing/success?success=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
     });

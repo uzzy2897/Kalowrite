@@ -1,52 +1,64 @@
-import type { Metadata } from "next";
-import { DM_Sans, Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { DM_Sans, Geist, Geist_Mono } from 'next/font/google';
+import './globals.css';
 
-import { ClerkProvider } from "@clerk/nextjs";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/sections/Footer";
-import { ThemeProvider } from "@/components/theme-provider";
-import CookieBanner from "@/components/sections/CookieBanner";
-import { dark } from "@clerk/themes";
-import Script from "next/script"; // ✅ Added for Google Analytics
+import { ClerkProvider } from '@clerk/nextjs';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/sections/Footer';
+import { ThemeProvider } from '@/components/theme-provider';
+import CookieBanner from '@/components/sections/CookieBanner';
+import { dark } from '@clerk/themes';
+import Script from 'next/script'; // ✅ Added for Google Analytics
 
 /* -------------------- Fonts -------------------- */
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
+const geistMono = Geist_Mono({
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+});
 const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  variable: '--font-dm-sans',
+  subsets: ['latin'],
+  weight: ['400', '500', '700'],
 });
 
 /* -------------------- SEO Metadata -------------------- */
 export const metadata: Metadata = {
-  title: "KaloWrite – AI Humanizer",
-  description: "Transform AI-generated text into natural, human-like content with KaloWrite.",
-  keywords: ["AI humanizer", "KaloWrite", "AI to human text", "natural writing"],
-  authors: [{ name: "KaloWrite Team" }],
+  title: 'KaloWrite – AI Humanizer',
+  description:
+    'Transform AI-generated text into natural, human-like content with KaloWrite.',
+  keywords: [
+    'AI humanizer',
+    'KaloWrite',
+    'AI to human text',
+    'natural writing',
+  ],
+  authors: [{ name: 'KaloWrite Team' }],
   openGraph: {
-    title: "KaloWrite – Humanize Your AI Text",
-    description: "Paste AI text and turn it into human-quality content instantly.",
-    url: "https://kalowrite.com",
-    siteName: "KaloWrite",
+    title: 'KaloWrite – Humanize Your AI Text',
+    description:
+      'Paste AI text and turn it into human-quality content instantly.',
+    url: 'https://kalowrite.com',
+    siteName: 'KaloWrite',
     images: [
       {
-        url: "https://geteasycal.com/wp-content/uploads/2025/09/kolowrite-logo.png",
+        url: 'https://geteasycal.com/wp-content/uploads/2025/09/kolowrite-logo.png',
         width: 1200,
         height: 630,
-        alt: "KaloWrite Logo",
+        alt: 'KaloWrite Logo',
       },
     ],
-    locale: "en_US",
-    type: "website",
+    locale: 'en_US',
+    type: 'website',
   },
   twitter: {
-    card: "summary_large_image",
-    title: "KaloWrite – AI Humanizer",
-    description: "Turn AI text into human-like writing instantly.",
-    images: ["https://geteasycal.com/wp-content/uploads/2025/09/kolowrite-logo.png"],
-    creator: "@KaloWrite",
+    card: 'summary_large_image',
+    title: 'KaloWrite – AI Humanizer',
+    description: 'Turn AI text into human-like writing instantly.',
+    images: [
+      'https://geteasycal.com/wp-content/uploads/2025/09/kolowrite-logo.png',
+    ],
+    creator: '@KaloWrite',
   },
 };
 
@@ -63,11 +75,11 @@ export default function RootLayout({
       appearance={{
         baseTheme: dark,
         elements: {
-          footer: "hidden", // hides “Secured by Clerk”
+          footer: 'hidden', // hides “Secured by Clerk”
         },
       }}
     >
-      <html lang="en" className="dark" suppressHydrationWarning>
+      <html lang='en' className='dark' suppressHydrationWarning>
         <head>
           {/* 🟦 Facebook Meta Pixel Code */}
           {pixelId && (
@@ -94,8 +106,8 @@ export default function RootLayout({
           className={`${dmSans.variable} ${geistSans.variable} ${geistMono.variable} bg-stone-950 antialiased`}
         >
           <ThemeProvider
-            attribute="class"
-            defaultTheme="dark"
+            attribute='class'
+            defaultTheme='dark'
             enableSystem
             disableTransitionOnChange
           >
@@ -109,10 +121,10 @@ export default function RootLayout({
 
           {/* ✅ Google Analytics 4 */}
           <Script
-            src="https://www.googletagmanager.com/gtag/js?id=G-N337Q74SB4"
-            strategy="afterInteractive"
+            src='https://www.googletagmanager.com/gtag/js?id=G-N337Q74SB4'
+            strategy='afterInteractive'
           />
-          <Script id="google-analytics" strategy="afterInteractive">
+          <Script id='google-analytics' strategy='afterInteractive'>
             {`
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
