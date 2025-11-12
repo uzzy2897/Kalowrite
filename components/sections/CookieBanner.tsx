@@ -77,31 +77,22 @@ export default function CookieBanner() {
       const inEurope = await checkIfInEurope();
       setIsEU(inEurope);
 
+      if (inEurope) {
+        loadCookiebot();
+      }
+
       const saved = localStorage.getItem('cookie_consent');
 
-      if (inEurope) {
-        // In Europe: Load Cookiebot and show banner if no consent saved
-        loadCookiebot();
+      if (!saved) {
+        setVisible(true); // Always show the general banner until consent is given
+        return;
+      }
 
-        if (!saved) {
-          setVisible(true);
-        } else {
-          setConsent(saved);
-          if (saved === 'accepted') loadAllScripts();
-        }
+      setConsent(saved);
+      if (saved === 'accepted') {
+        loadAllScripts();
       } else {
-        // Not in Europe: Auto-accept cookies, no banner, no Cookiebot
-        if (!saved) {
-          console.log('🌍 Auto-accepting cookies (non-EU)');
-          localStorage.setItem('cookie_consent', 'accepted');
-          setConsent('accepted');
-          loadAllScripts(); // Load GA4 and Facebook Pixel directly
-        } else {
-          setConsent(saved);
-          if (saved === 'accepted') loadAllScripts();
-        }
-        setVisible(false); // Never show banner outside EU
-        // Don't load Cookiebot outside EU
+        setVisible(true);
       }
     };
 
