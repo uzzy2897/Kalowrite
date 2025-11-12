@@ -8,7 +8,6 @@ import Footer from '@/components/sections/Footer';
 import { ThemeProvider } from '@/components/theme-provider';
 import CookieBanner from '@/components/sections/CookieBanner';
 import { dark } from '@clerk/themes';
-import Script from 'next/script'; // ✅ Added for Google Analytics
 
 /* -------------------- Fonts -------------------- */
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
@@ -118,20 +117,6 @@ export default function RootLayout({
 
           {/* ✅ Cookie Consent + Analytics Loader */}
           <CookieBanner />
-
-          {/* ✅ Google Analytics 4 */}
-          <Script
-            src='https://www.googletagmanager.com/gtag/js?id=G-N337Q74SB4'
-            strategy='afterInteractive'
-          />
-          <Script id='google-analytics' strategy='afterInteractive'>
-            {`
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', 'G-N337Q74SB4');
-            `}
-          </Script>
         </body>
       </html>
     </ClerkProvider>
