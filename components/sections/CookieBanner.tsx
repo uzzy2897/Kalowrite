@@ -2,20 +2,111 @@
 
 import { useEffect, useState } from 'react';
 
+// EU/EEA country codes (27 EU countries + UK, Norway, Iceland, Liechtenstein)
+const EU_COUNTRIES = [
+  'AT',
+  'BE',
+  'BG',
+  'HR',
+  'CY',
+  'CZ',
+  'DK',
+  'EE',
+  'FI',
+  'FR',
+  'DE',
+  'GR',
+  'HU',
+  'IE',
+  'IT',
+  'LV',
+  'LT',
+  'LU',
+  'MT',
+  'NL',
+  'PL',
+  'PT',
+  'RO',
+  'SK',
+  'SI',
+  'ES',
+  'SE',
+  'GB',
+  'NO',
+  'IS',
+  'LI', // UK, Norway, Iceland, Liechtenstein
+];
+
+async function checkIfInEurope(): Promise<boolean> {
+  try {
+    // Use server-side geo-detection API
+    const response = await fetch('/api/geo', {
+      cache: 'no-store', // Always get fresh geo data
+    });
+    const data = await response.json();
+
+    if (data.isEU !== undefined) {
+      console.log('🌍 Geo-detection (API):', data);
+      return data.isEU;
+    }
+  } catch (error) {
+    console.warn('⚠️ Geo-detection API failed:', error);
+  }
+
+  // Fallback: Check Cookiebot's userCountry
+  if (typeof window !== 'undefined' && (window as any).Cookiebot?.userCountry) {
+    const country = (window as any).Cookiebot.userCountry;
+    const isEU = EU_COUNTRIES.includes(country.toUpperCase());
+    console.log('🌍 Geo-detection (Cookiebot fallback):', { country, isEU });
+    return isEU;
+  }
+
+  // Default: assume not EU (will auto-accept)
+  console.log('🌍 Geo-detection: Defaulting to non-EU (auto-accept)');
+  return false;
+}
+
 export default function CookieBanner() {
   const [visible, setVisible] = useState(false);
   const [consent, setConsent] = useState<string | null>(null);
+  const [isEU, setIsEU] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('cookie_consent');
-    if (!saved) setVisible(true);
-    else {
-      setConsent(saved);
-      if (saved === 'accepted') loadAllScripts();
-    }
+    const checkGeoAndConsent = async () => {
+      // Check if user is in Europe using API
+      const inEurope = await checkIfInEurope();
+      setIsEU(inEurope);
 
-    // Load Cookiebot script
-    loadCookiebot();
+      const saved = localStorage.getItem('cookie_consent');
+
+      if (inEurope) {
+        // In Europe: Load Cookiebot and show banner if no consent saved
+        loadCookiebot();
+
+        if (!saved) {
+          setVisible(true);
+        } else {
+          setConsent(saved);
+          if (saved === 'accepted') loadAllScripts();
+        }
+      } else {
+        // Not in Europe: Auto-accept cookies, no banner, no Cookiebot
+        if (!saved) {
+          console.log('🌍 Auto-accepting cookies (non-EU)');
+          localStorage.setItem('cookie_consent', 'accepted');
+          setConsent('accepted');
+          loadAllScripts(); // Load GA4 and Facebook Pixel directly
+        } else {
+          setConsent(saved);
+          if (saved === 'accepted') loadAllScripts();
+        }
+        setVisible(false); // Never show banner outside EU
+        // Don't load Cookiebot outside EU
+      }
+    };
+
+    // Check geo and handle consent
+    void checkGeoAndConsent();
   }, []);
 
   const handleConsent = (value: 'accepted' | 'rejected') => {
