@@ -37,6 +37,12 @@ const EU_COUNTRIES = [
   'LI', // UK, Norway, Iceland, Liechtenstein
 ];
 
+const DEFAULT_GA_MEASUREMENT_ID = 'G-N337Q74SB4';
+const GA_MEASUREMENT_ID =
+  process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || DEFAULT_GA_MEASUREMENT_ID;
+const IS_USING_FALLBACK_GA_ID = !process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+let warnedAboutGaIdFallback = false;
+
 async function checkIfInEurope(): Promise<boolean> {
   try {
     // Use server-side geo-detection API
@@ -135,6 +141,23 @@ export default function CookieBanner() {
 
   /** ✅ Google Analytics */
   const loadGoogleAnalytics = () => {
+    if (!GA_MEASUREMENT_ID) {
+      if (!warnedAboutGaIdFallback) {
+        console.warn(
+          '⚠️ GA measurement ID missing - set NEXT_PUBLIC_GA_MEASUREMENT_ID to enable tracking.'
+        );
+        warnedAboutGaIdFallback = true;
+      }
+      return;
+    }
+
+    if (IS_USING_FALLBACK_GA_ID && !warnedAboutGaIdFallback) {
+      console.warn(
+        `⚠️ NEXT_PUBLIC_GA_MEASUREMENT_ID not set. Falling back to ${DEFAULT_GA_MEASUREMENT_ID}.`
+      );
+      warnedAboutGaIdFallback = true;
+    }
+
     if ((window as any).GA_INITIALIZED) return;
     (window as any).GA_INITIALIZED = true;
 
@@ -150,17 +173,17 @@ export default function CookieBanner() {
 
     if (
       !document.querySelector(
-        "script[src*='googletagmanager.com/gtag/js?id=G-N337Q74SB4']"
+        `script[src*='googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}']`
       )
     ) {
       const script = document.createElement('script');
-      script.src = 'https://www.googletagmanager.com/gtag/js?id=G-N337Q74SB4';
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
       script.async = true;
       document.head.appendChild(script);
     }
 
     gtag('js', new Date());
-    gtag('config', 'G-N337Q74SB4', { anonymize_ip: true });
+    gtag('config', GA_MEASUREMENT_ID, { anonymize_ip: true });
   };
 
   /** ✅ Meta Pixel (Facebook) — fully typed, no TS errors */

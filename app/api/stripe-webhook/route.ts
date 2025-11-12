@@ -213,10 +213,14 @@ export async function POST(req: Request) {
     /* -------------------------------------------------------------------------- */
     /* 📊 GA4 PURCHASE TRACKING (SERVER-SIDE)                                     */
     /* -------------------------------------------------------------------------- */
-    const GA4_MEASUREMENT_ID = 'G-N337Q74SB4';
+    const DEFAULT_GA4_MEASUREMENT_ID = 'G-N337Q74SB4';
+    const GA4_MEASUREMENT_ID =
+      process.env.GA4_MEASUREMENT_ID ||
+      process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ||
+      DEFAULT_GA4_MEASUREMENT_ID;
     const GA4_API_SECRET = process.env.GA4_API_SECRET;
 
-    if (GA4_API_SECRET) {
+    if (GA4_API_SECRET && GA4_MEASUREMENT_ID) {
       try {
         const purchaseType =
           session.mode === 'payment' ? 'topup' : 'subscription';
