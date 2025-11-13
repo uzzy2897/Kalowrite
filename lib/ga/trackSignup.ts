@@ -1,7 +1,21 @@
 // lib/ga/trackSignup.ts
+import { ensureGaInitialized } from '@/lib/ga/initGa';
+
+const GA_DEBUG_MODE =
+  process.env.NEXT_PUBLIC_GA_DEBUG_MODE === 'true' ||
+  (process.env.NEXT_PUBLIC_GA_DEBUG_MODE === undefined &&
+    process.env.NODE_ENV !== 'production');
+
 export function trackSignupGA(opts?: { method?: string; userId?: string }) {
   if (typeof window === 'undefined') {
     console.warn('⚠️ trackSignupGA: window is undefined (server-side)');
+    return;
+  }
+
+  const gaReady = ensureGaInitialized();
+
+  if (!gaReady) {
+    console.warn('⚠️ Unable to initialize GA before tracking sign_up event');
     return;
   }
 
@@ -22,7 +36,7 @@ export function trackSignupGA(opts?: { method?: string; userId?: string }) {
     // Helps you see each fire distinctly in DebugView
     event_id: (crypto?.randomUUID && crypto.randomUUID()) || String(Date.now()),
     // Enable debug mode for development (shows in DebugView)
-    debug_mode: process.env.NODE_ENV !== 'production',
+    debug_mode: GA_DEBUG_MODE,
     // Add timestamp for debugging
     timestamp: Date.now(),
   };

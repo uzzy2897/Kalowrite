@@ -1,4 +1,9 @@
 // lib/ga/trackPurchase.ts
+const GA_DEBUG_MODE =
+  process.env.NEXT_PUBLIC_GA_DEBUG_MODE === 'true' ||
+  (process.env.NEXT_PUBLIC_GA_DEBUG_MODE === undefined &&
+    process.env.NODE_ENV !== 'production');
+
 export function trackPurchaseGA({
     transactionId,
     value,
@@ -24,6 +29,7 @@ export function trackPurchaseGA({
       currency,
       coupon,
       items,
+      debug_mode: GA_DEBUG_MODE,
     });
   
     console.log("✅ Google Analytics purchase event sent");

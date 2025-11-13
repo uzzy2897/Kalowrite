@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ensureGaInitialized } from '@/lib/ga/initGa';
 
 // EU/EEA country codes (27 EU countries + UK, Norway, Iceland, Liechtenstein)
 const EU_COUNTRIES = [
@@ -37,11 +38,6 @@ const EU_COUNTRIES = [
   'LI', // UK, Norway, Iceland, Liechtenstein
 ];
 
-const DEFAULT_GA_MEASUREMENT_ID = 'G-N337Q74SB4';
-const GA_MEASUREMENT_ID =
-  process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || DEFAULT_GA_MEASUREMENT_ID;
-const IS_USING_FALLBACK_GA_ID = !process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
-let warnedAboutGaIdFallback = false;
 
 async function checkIfInEurope(): Promise<boolean> {
   try {
@@ -76,6 +72,16 @@ export default function CookieBanner() {
   const [visible, setVisible] = useState(false);
   const [consent, setConsent] = useState<string | null>(null);
   const [isEU, setIsEU] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    (window as any).dataLayer = (window as any).dataLayer || [];
+    if (!(window as any).gtag) {
+      (window as any).gtag = (...args: any[]) => {
+        (window as any).dataLayer.push(args);
+      };
+    }
+  }, []);
 
   useEffect(() => {
     const checkGeoAndConsent = async () => {
@@ -141,49 +147,7 @@ export default function CookieBanner() {
 
   /** ✅ Google Analytics */
   const loadGoogleAnalytics = () => {
-    if (!GA_MEASUREMENT_ID) {
-      if (!warnedAboutGaIdFallback) {
-        console.warn(
-          '⚠️ GA measurement ID missing - set NEXT_PUBLIC_GA_MEASUREMENT_ID to enable tracking.'
-        );
-        warnedAboutGaIdFallback = true;
-      }
-      return;
-    }
-
-    if (IS_USING_FALLBACK_GA_ID && !warnedAboutGaIdFallback) {
-      console.warn(
-        `⚠️ NEXT_PUBLIC_GA_MEASUREMENT_ID not set. Falling back to ${DEFAULT_GA_MEASUREMENT_ID}.`
-      );
-      warnedAboutGaIdFallback = true;
-    }
-
-    if ((window as any).GA_INITIALIZED) return;
-    (window as any).GA_INITIALIZED = true;
-
-    (window as any).dataLayer = (window as any).dataLayer || [];
-
-    // Define gtag function and attach to window
-    function gtag(...args: any[]) {
-      (window as any).dataLayer.push(args);
-    }
-
-    // Make gtag available globally
-    (window as any).gtag = gtag;
-
-    if (
-      !document.querySelector(
-        `script[src*='googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}']`
-      )
-    ) {
-      const script = document.createElement('script');
-      script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
-      script.async = true;
-      document.head.appendChild(script);
-    }
-
-    gtag('js', new Date());
-    gtag('config', GA_MEASUREMENT_ID, { anonymize_ip: true });
+    ensureGaInitialized();
   };
 
   /** ✅ Meta Pixel (Facebook) — fully typed, no TS errors */

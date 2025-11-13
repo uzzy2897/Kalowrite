@@ -9,10 +9,26 @@ export default function PurchaseSuccessPage() {
     const trackPurchase = async () => {
       try {
         const sessionId = new URLSearchParams(window.location.search).get("session_id");
-        if (!sessionId) return;
+        if (!sessionId) {
+          console.warn("⚠️ Missing session_id in success URL");
+          return;
+        }
 
-        const res = await fetch(`/api/stripe/session?session_id=${sessionId}`);
+        const res = await fetch(
+          `/api/stripe/session?session_id=${encodeURIComponent(sessionId)}`
+        );
+
+        if (!res.ok) {
+          console.error("⚠️ Failed to load Stripe session", res.statusText);
+          return;
+        }
+
         const session = await res.json();
+
+        if (!session || !session.amount_total) {
+          console.warn("⚠️ Stripe session payload incomplete", session);
+          return;
+        }
 
         const value = session.amount_total / 100;
         const currency = session.currency?.toUpperCase();
@@ -46,19 +62,48 @@ export default function PurchaseSuccessPage() {
         });
 
         /* ---------------- Google Analytics ---------------- */
+        const itemId =
+          session.metadata?.product_id ||
+          session.metadata?.plan ||
+          session.metadata?.billing ||
+          "subscription";
+        const itemName =
+          session.metadata?.product_name ||
+          (session.metadata?.plan
+            ? `${session.metadata.plan}${
+                session.metadata?.billing ? `_${session.metadata.billing}` : ""
+              }`
+            : "Subscription");
+
+        const items = [
+          {
+            item_id: itemId,
+            item_name: itemName,
+            price: value,
+            quantity: 1,
+          },
+        ];
+
         trackPurchaseGA({
           transactionId: eventId,
           value,
           currency,
-          items: [
-            {
-              item_id: session.metadata?.product_id || "unknown",
-              item_name: session.metadata?.product_name || "Unknown Product",
-              price: value,
-              quantity: 1,
-            },
-          ],
+          items,
         });
+
+        fetch('/api/ga/purchase', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transactionId: eventId,
+            value,
+            currency,
+            items,
+            userId: session.metadata?.userId,
+          }),
+        }).catch((err) =>
+          console.warn('⚠️ Failed to send GA4 purchase via server:', err)
+        );
 
         console.log("✅ Purchase tracked (FB + GA)");
       } catch (err) {

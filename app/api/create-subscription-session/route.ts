@@ -74,7 +74,7 @@ export async function POST(req: Request) {
       },
       metadata: { userId, plan, billing },
       allow_promotion_codes: true,
-      success_url: `${baseUrl}/pricing/success?success=true`,
+      success_url: `${baseUrl}/pricing/success?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/pricing?canceled=true`,
     });
 

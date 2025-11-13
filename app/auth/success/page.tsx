@@ -4,7 +4,9 @@ import { useUser } from '@clerk/nextjs';
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { trackSignup } from '@/lib/fb/trackSignup';
-import { trackSignupGA } from '@/lib/ga/trackSignup'; // GA: no PII!
+import { ensureGaInitialized } from '@/lib/ga/initGa';
+
+const GA_SIGNUP_ENDPOINT = '/api/ga/sign-up';
 
 function hasConsent() {
   if (typeof window === 'undefined') return false;
@@ -87,6 +89,12 @@ export default function SignupSuccessPage() {
         return;
       }
 
+      // Ensure GA script starts loading immediately once consent is confirmed
+      const gaInitialized = ensureGaInitialized();
+      if (!gaInitialized) {
+        console.warn('⚠️ GA initialization failed even though consent exists');
+      }
+
       try {
         // 1) Facebook Pixel/CAPI — your fn can hash email server-side
         if (email) {
@@ -135,10 +143,38 @@ export default function SignupSuccessPage() {
 
         console.log('📊 Sign-up method detected:', signUpMethod);
 
+        const sendServerSideSignupEvent = async () => {
+          const payload = { method: signUpMethod, userId };
+          try {
+            const response = await fetch(GA_SIGNUP_ENDPOINT, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              keepalive: true,
+            });
+            console.log(
+              '🚀 ~ sendServerSideSignupEvent ~ response:',
+              response.ok,
+              response.status
+            );
+            if (!response.ok) {
+              const details = await response.json().catch(() => ({}));
+              console.warn('⚠️ GA4 server sign_up failed:', {
+                status: response.status,
+                details,
+              });
+            } else {
+              console.log('✅ GA4 server sign_up sent');
+            }
+          } catch (err) {
+            console.warn('⚠️ Failed to send GA4 server sign_up event:', err);
+          }
+        };
+
         // Wait a bit for GA4 to be ready if needed
         let attempts = 0;
         const maxAttempts = 20; // Increased attempts (2 seconds total)
-        const checkGA4AndTrack = () => {
+        const checkGA4AndTrack = async () => {
           const gtag = (window as any).gtag;
           const dataLayer = (window as any).dataLayer;
 
@@ -151,11 +187,13 @@ export default function SignupSuccessPage() {
 
           if (typeof window !== 'undefined' && gtag) {
             console.log('✅ GA4 ready, tracking sign-up...');
-            trackSignupGA({ method: signUpMethod, userId });
+            await sendServerSideSignupEvent();
             console.log('✅ GA4 sign-up event sent');
           } else if (attempts < maxAttempts) {
             attempts++;
-            setTimeout(checkGA4AndTrack, 100);
+            setTimeout(() => {
+              void checkGA4AndTrack();
+            }, 100);
           } else {
             console.warn(
               '⚠️ GA4 not available after waiting, trying to track anyway...'
@@ -170,6 +208,7 @@ export default function SignupSuccessPage() {
                   (crypto?.randomUUID && crypto.randomUUID()) ||
                   String(Date.now()),
               });
+              await sendServerSideSignupEvent();
               console.log('✅ Sign-up event pushed to dataLayer');
             } else {
               console.error('❌ GA4 dataLayer not available');
@@ -177,7 +216,7 @@ export default function SignupSuccessPage() {
           }
         };
 
-        checkGA4AndTrack();
+        void checkGA4AndTrack();
 
         // Store timestamp of tracking to prevent rapid duplicates
         if (typeof window !== 'undefined') {
