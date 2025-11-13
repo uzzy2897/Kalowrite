@@ -72,7 +72,11 @@ const Hero = () => {
         </div>
         <SignedOut>
               <div className="flex flex-col items-center gap-2 mt-6">
-                <SignInButton mode="modal">
+                <SignInButton
+                  mode="modal"
+                  signUpForceRedirectUrl="/auth/success"
+                  signUpFallbackRedirectUrl="/auth/success"
+                >
                   <button
                     className="bg-emerald-500 text-sm font-semibold hover:scale-105 transition ease rounded-md hover:bg-emerald-700 px-4 py-2"
                     onClick={() =>
@@ -116,7 +120,11 @@ const Hero = () => {
             </SignedIn>
             <SignedOut>
               <div className="flex flex-col items-center gap-2 ">
-                <SignInButton mode="modal">
+                <SignInButton
+                  mode="modal"
+                  signUpForceRedirectUrl="/auth/success"
+                  signUpFallbackRedirectUrl="/auth/success"
+                >
                   <button
                     className="bg-emerald-500 text-sm font-semibold hover:scale-105 transition ease rounded-md hover:bg-emerald-700 px-4 py-2"
                     onClick={() =>

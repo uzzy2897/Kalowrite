@@ -22,6 +22,8 @@ export default function SignInPage() {
         path="/auth/sign-in"
         routing="path"
         signUpUrl="/auth/sign-up"
+        signUpForceRedirectUrl="/auth/success"
+        signUpFallbackRedirectUrl="/auth/success"
         fallbackRedirectUrl="/"
         forceRedirectUrl={redirectUrl} // 👈 correct redirect
         appearance={{
