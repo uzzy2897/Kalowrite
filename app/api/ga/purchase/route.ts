@@ -5,8 +5,67 @@ const GA4_MEASUREMENT_ID =
   process.env.GA4_MEASUREMENT_ID || process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 const GA4_API_SECRET = process.env.GA4_API_SECRET;
 
+const GOOGLE_ADS_CONVERSION_ID =
+  process.env.GOOGLE_ADS_CONVERSION_ID ||
+  process.env.NEXT_PUBLIC_GOOGLE_ADS_ID ||
+  '17683674158';
+
+const GOOGLE_ADS_CONVERSION_LABEL =
+  process.env.GOOGLE_ADS_CONVERSION_LABEL ||
+  process.env.NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_LABEL ||
+  'F0ZOCP6PgMAbEK7onfBB';
+
+const GOOGLE_ADS_ENABLED =
+  Boolean(GOOGLE_ADS_CONVERSION_ID) && Boolean(GOOGLE_ADS_CONVERSION_LABEL);
+
 if (!GA4_MEASUREMENT_ID) {
   throw new Error('GA4 measurement ID is not configured');
+}
+
+async function sendGoogleAdsConversion({
+  transactionId,
+  value,
+  currency,
+}: {
+  transactionId: string;
+  value: number;
+  currency: string;
+}) {
+  if (!GOOGLE_ADS_ENABLED) return;
+
+  const url = new URL(
+    `https://www.googleadservices.com/pagead/conversion/${GOOGLE_ADS_CONVERSION_ID}/`
+  );
+  url.searchParams.set('label', GOOGLE_ADS_CONVERSION_LABEL as string);
+  url.searchParams.set('value', value.toString());
+  url.searchParams.set('currency_code', currency);
+  url.searchParams.set('transaction_id', transactionId);
+  url.searchParams.set('guid', 'ON');
+  url.searchParams.set('script', '0');
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'KalowriteServer/1.0',
+      },
+    });
+    console.log(
+      '🚀 ~ sendGoogleAdsConversion ~ response:',
+      response.ok,
+      response.status,
+      url.toString()
+    );
+    if (!response.ok) {
+      console.warn(
+        '⚠️ Google Ads conversion request failed',
+        response.status,
+        await response.text()
+      );
+    }
+  } catch (error) {
+    console.warn('⚠️ Google Ads conversion request threw', error);
+  }
 }
 
 export async function POST(request: Request) {
@@ -74,6 +133,12 @@ export async function POST(request: Request) {
         { status: 502 }
       );
     }
+
+    await sendGoogleAdsConversion({
+      transactionId,
+      value,
+      currency,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {

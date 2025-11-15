@@ -1,16 +1,18 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import Link from "next/link";
-import { trackPurchaseGA } from "@/lib/ga/trackPurchase";
+import { useEffect } from 'react';
+import Link from 'next/link';
+import { trackPurchaseGA } from '@/lib/ga/trackPurchase';
 
 export default function PurchaseSuccessPage() {
   useEffect(() => {
     const trackPurchase = async () => {
       try {
-        const sessionId = new URLSearchParams(window.location.search).get("session_id");
+        const sessionId = new URLSearchParams(window.location.search).get(
+          'session_id'
+        );
         if (!sessionId) {
-          console.warn("⚠️ Missing session_id in success URL");
+          console.warn('⚠️ Missing session_id in success URL');
           return;
         }
 
@@ -19,14 +21,14 @@ export default function PurchaseSuccessPage() {
         );
 
         if (!res.ok) {
-          console.error("⚠️ Failed to load Stripe session", res.statusText);
+          console.error('⚠️ Failed to load Stripe session', res.statusText);
           return;
         }
 
         const session = await res.json();
 
         if (!session || !session.amount_total) {
-          console.warn("⚠️ Stripe session payload incomplete", session);
+          console.warn('⚠️ Stripe session payload incomplete', session);
           return;
         }
 
@@ -40,16 +42,16 @@ export default function PurchaseSuccessPage() {
 
         if (window.fbq) {
           window.fbq(
-            "track",
-            "Purchase",
+            'track',
+            'Purchase',
             { value, currency },
             { eventID: eventId }
           );
         }
 
-        await fetch("/api/facebook-capi", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        await fetch('/api/facebook-capi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             eventId,
             email: session.customer_details?.email,
@@ -66,14 +68,14 @@ export default function PurchaseSuccessPage() {
           session.metadata?.product_id ||
           session.metadata?.plan ||
           session.metadata?.billing ||
-          "subscription";
+          'subscription';
         const itemName =
           session.metadata?.product_name ||
           (session.metadata?.plan
             ? `${session.metadata.plan}${
-                session.metadata?.billing ? `_${session.metadata.billing}` : ""
+                session.metadata?.billing ? `_${session.metadata.billing}` : ''
               }`
-            : "Subscription");
+            : 'Subscription');
 
         const items = [
           {
@@ -91,7 +93,7 @@ export default function PurchaseSuccessPage() {
           items,
         });
 
-        fetch('/api/ga/purchase', {
+        await fetch('/api/ga/purchase', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -105,9 +107,9 @@ export default function PurchaseSuccessPage() {
           console.warn('⚠️ Failed to send GA4 purchase via server:', err)
         );
 
-        console.log("✅ Purchase tracked (FB + GA)");
+        console.log('✅ Purchase tracked (FB + GA)');
       } catch (err) {
-        console.error("⚠️ Purchase tracking failed:", err);
+        console.error('⚠️ Purchase tracking failed:', err);
       }
     };
 
@@ -115,12 +117,12 @@ export default function PurchaseSuccessPage() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen text-white text-center px-4">
-      <h1 className="text-2xl font-semibold mb-2">Payment Successful 🎉</h1>
-      <p className="text-zinc-400 max-w-md">Thank you for your purchase!</p>
+    <div className='flex flex-col items-center justify-center h-screen text-white text-center px-4'>
+      <h1 className='text-2xl font-semibold mb-2'>Payment Successful 🎉</h1>
+      <p className='text-zinc-400 max-w-md'>Thank you for your purchase!</p>
       <Link
-        href="/humanize"
-        className="bg-accent/50 hover:scale-95 font-bold hover:bg-emerald-500 transition ease py-3 px-4 mt-4 rounded border"
+        href='/humanize'
+        className='bg-accent/50 hover:scale-95 font-bold hover:bg-emerald-500 transition ease py-3 px-4 mt-4 rounded border'
       >
         Start Humanizing
       </Link>

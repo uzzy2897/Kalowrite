@@ -5,8 +5,60 @@ const GA4_MEASUREMENT_ID =
   process.env.GA4_MEASUREMENT_ID || process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 const GA4_API_SECRET = process.env.GA4_API_SECRET;
 
+const GOOGLE_ADS_CONVERSION_ID =
+  process.env.GOOGLE_ADS_CONVERSION_ID ||
+  process.env.NEXT_PUBLIC_GOOGLE_ADS_ID;
+
+const GOOGLE_ADS_SIGNUP_LABEL =
+  process.env.GOOGLE_ADS_SIGNUP_LABEL ||
+  process.env.NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL;
+
+const GOOGLE_ADS_SIGNUP_ENABLED =
+  Boolean(GOOGLE_ADS_CONVERSION_ID) && Boolean(GOOGLE_ADS_SIGNUP_LABEL);
+
 if (!GA4_MEASUREMENT_ID) {
   throw new Error('GA4 measurement ID is not configured');
+}
+
+async function sendGoogleAdsSignupConversion() {
+  if (!GOOGLE_ADS_SIGNUP_ENABLED) {
+    console.warn(
+      '⚠️ Google Ads sign-up conversion skipped (missing ID or label env vars)'
+    );
+    return;
+  }
+
+  const url = new URL(
+    `https://www.googleadservices.com/pagead/conversion/${GOOGLE_ADS_CONVERSION_ID}/`
+  );
+  url.searchParams.set('label', GOOGLE_ADS_SIGNUP_LABEL as string);
+  url.searchParams.set('guid', 'ON');
+  url.searchParams.set('script', '0');
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'KalowriteServer/1.0',
+      },
+    });
+
+    console.log(
+      '🚀 Google Ads sign-up conversion sent:',
+      response.ok,
+      response.status,
+      url.toString()
+    );
+    if (!response.ok) {
+      console.warn(
+        '⚠️ Google Ads sign-up conversion failed',
+        response.status,
+        await response.text()
+      );
+    }
+  } catch (error) {
+    console.warn('⚠️ Google Ads sign-up conversion threw', error);
+  }
 }
 
 export async function POST(request: Request) {
@@ -66,6 +118,8 @@ export async function POST(request: Request) {
     }
     const json = gaResponse.status;
     console.log('🚀 ~ POST ~ gaResponse:', json);
+
+    await sendGoogleAdsSignupConversion();
 
     console.log('✅ GA4 sign_up event sent (server)');
     return NextResponse.json({ ok: true });

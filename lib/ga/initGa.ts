@@ -6,6 +6,10 @@ const ENV_GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 const GA_MEASUREMENT_ID = ENV_GA_ID || DEFAULT_GA_MEASUREMENT_ID;
 const IS_USING_FALLBACK_GA_ID = !ENV_GA_ID;
 
+const DEFAULT_GOOGLE_ADS_ID = 'AW-17683674158';
+const ENV_GOOGLE_ADS_ID = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID;
+const GOOGLE_ADS_ID = ENV_GOOGLE_ADS_ID || DEFAULT_GOOGLE_ADS_ID;
+
 let warnedAboutMissingGaId = false;
 let warnedAboutGaIdFallback = false;
 
@@ -59,7 +63,10 @@ function bootstrapGtag(id: string) {
   });
 
   // ensure config is set in debug mode (safe to call again)
-  gtag('config', 'G-N337Q74SB4', { send_page_view: false, debug_mode: true });
+  gtag('config', 'G-N337Q74SB4', { send_page_view: false });
+  if (GOOGLE_ADS_ID) {
+    gtag('config', GOOGLE_ADS_ID, { send_page_view: false });
+  }
 
   // send a visible debug event
   // gtag('event', 'page_view', {

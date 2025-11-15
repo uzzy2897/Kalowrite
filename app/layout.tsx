@@ -128,7 +128,8 @@ export default function RootLayout({
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
-              gtag('config', 'G-N337Q74SB4',{ debug_mode:true });
+              gtag('config', 'G-N337Q74SB4',{debug_mode: true});
+              gtag('config', 'AW-17683674158');
             `}
           </Script>
         </body>
