@@ -85,6 +85,7 @@ export default function CookieBanner() {
   useEffect(() => {
     const checkGeoAndConsent = async () => {
       // Check if user is in Europe using API
+      // Check if user is in Europe using API
       const inEurope = await checkIfInEurope();
       setIsEU(inEurope);
 
@@ -98,7 +99,7 @@ export default function CookieBanner() {
       }
 
       // EU visitors must explicitly consent
-      loadCookiebot();
+      // loadCookiebot();
 
       const saved = localStorage.getItem('cookie_consent');
 
@@ -109,8 +110,15 @@ export default function CookieBanner() {
 
       setConsent(saved);
       if (saved === 'accepted') {
-        loadAllScripts();
-        setVisible(false);
+        // If the user is in EU but stored consent was auto-accepted before, require explicit action again
+        if (!inEurope) {
+          loadAllScripts();
+          setVisible(false);
+        } else {
+          localStorage.removeItem('cookie_consent');
+          setConsent(null);
+          setVisible(true);
+        }
       } else {
         setVisible(true);
       }
@@ -125,10 +133,6 @@ export default function CookieBanner() {
     setConsent(value);
     setVisible(false);
     if (value === 'accepted') {
-      // Also submit to Cookiebot if available
-      if ((window as any).Cookiebot) {
-        (window as any).Cookiebot.submitCustomConsent(true, true, true);
-      }
       loadAllScripts();
     }
   };
