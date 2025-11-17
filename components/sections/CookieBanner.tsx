@@ -38,7 +38,6 @@ const EU_COUNTRIES = [
   'LI', // UK, Norway, Iceland, Liechtenstein
 ];
 
-
 async function checkIfInEurope(): Promise<boolean> {
   try {
     // Use server-side geo-detection API
@@ -89,20 +88,29 @@ export default function CookieBanner() {
       const inEurope = await checkIfInEurope();
       setIsEU(inEurope);
 
-      if (inEurope) {
-        loadCookiebot();
+      if (!inEurope) {
+        // Auto-accept for Rest of World
+        localStorage.setItem('cookie_consent', 'accepted');
+        setConsent('accepted');
+        setVisible(false);
+        loadAllScripts();
+        return;
       }
+
+      // EU visitors must explicitly consent
+      loadCookiebot();
 
       const saved = localStorage.getItem('cookie_consent');
 
       if (!saved) {
-        setVisible(true); // Always show the general banner until consent is given
+        setVisible(true);
         return;
       }
 
       setConsent(saved);
       if (saved === 'accepted') {
         loadAllScripts();
+        setVisible(false);
       } else {
         setVisible(true);
       }
