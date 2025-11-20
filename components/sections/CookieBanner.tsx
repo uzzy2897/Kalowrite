@@ -115,9 +115,9 @@ export default function CookieBanner() {
           loadAllScripts();
           setVisible(false);
         } else {
-          localStorage.removeItem('cookie_consent');
+          // localStorage.removeItem('cookie_consent');
           setConsent(null);
-          setVisible(true);
+          setVisible(false);
         }
       } else {
         setVisible(true);
