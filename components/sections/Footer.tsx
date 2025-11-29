@@ -17,7 +17,7 @@ export default function Footer() {
       <div className="container px-4 mx-auto py-8 max-w-7xl grid gap-6 md:grid-cols-3 text-sm text-muted-foreground">
         <div className="border-r pr-4">
           <img
-            src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
+            src="/kalowrite-logo.png"
             alt="Kalowrite Logo"
             className="h-8 mb-4"
           />

@@ -45,7 +45,7 @@ export default function Navbar() {
         <Link href={"/"}>
           <img
             className="h-6"
-            src="https://geteasycal.com/wp-content/uploads/2025/09/kalowrite-logo.png"
+            src="/kalowrite-logo.png"
             alt="Kalowrite Logo"
           />
         </Link>
