@@ -211,6 +211,95 @@ export async function POST(req: Request) {
     }
 
     /* -------------------------------------------------------------------------- */
+    /* 🎯 TIKTOK EVENTS API (NON-BLOCKING)                                        */
+    /* -------------------------------------------------------------------------- */
+    const tiktokPixelId = process.env.NEXT_PUBLIC_TIKTOK_PIXEL_ID;
+    const tiktokAccessToken = process.env.TIKTOK_EVENTS_API_TOKEN;
+    const tiktokTestEventCode = process.env.TIKTOK_TEST_EVENT_CODE;
+
+    if (tiktokPixelId && tiktokAccessToken) {
+      try {
+        const clientDetails = (session as any).client_details as
+          | { ip_address?: string; user_agent?: string }
+          | undefined;
+
+        const tiktokUser: Record<string, unknown> = {};
+        if (clientDetails?.user_agent)
+          tiktokUser.user_agent = clientDetails.user_agent;
+        if (clientDetails?.ip_address) tiktokUser.ip = clientDetails.ip_address;
+        if (session.customer_details?.email)
+          tiktokUser.email = session.customer_details.email;
+
+        const purchaseValue = session.amount_total
+          ? session.amount_total / 100
+          : 0;
+        const currency = session.currency?.toUpperCase() || 'USD';
+        const planId = session.metadata?.plan || 'subscription';
+
+        const tiktokPayload: Record<string, unknown> = {
+          event: 'Purchase',
+          event_id: session.id,
+          event_time: Math.floor(Date.now() / 1000),
+          properties: {
+            content_type: 'product',
+            value: purchaseValue,
+            currency,
+            contents: [
+              {
+                content_id: planId,
+                content_name: session.metadata?.plan || 'Subscription',
+                price: purchaseValue,
+                quantity: 1,
+              },
+            ],
+          },
+        };
+
+        // if (tiktokTestEventCode) {
+        //   (tiktokPayload as any).test_event_code = tiktokTestEventCode;
+        // } else {
+        //   console.warn('⚠️ TikTok test event code not set; test event may not appear');
+        // }
+
+        if (Object.keys(tiktokUser).length > 0) {
+          (tiktokPayload as any).user = tiktokUser;
+        }
+
+        fetch('https://business-api.tiktok.com/open_api/v1.3/event/track/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Token': tiktokAccessToken,
+          },
+          body: JSON.stringify({
+            event_source: 'web',
+            event_source_id: tiktokPixelId,
+            data: [tiktokPayload],
+          }),
+        })
+          .then(async (res) => {
+            const bodyText = await res.text();
+            if (!res.ok) {
+              console.warn('⚠️ TikTok tracking failed:', {
+                status: res.status,
+                statusText: res.statusText,
+                error: bodyText,
+              });
+              return;
+            }
+            console.log('✅ TikTok purchase event sent:', bodyText);
+          })
+          .catch((err) =>
+            console.warn('⚠️ TikTok tracking request error:', err)
+          );
+      } catch (err) {
+        console.warn('⚠️ TikTok tracking error:', err);
+      }
+    } else {
+      console.warn('⚠️ TikTok tracking skipped: missing pixel id or API token');
+    }
+
+    /* -------------------------------------------------------------------------- */
     /* 📊 GA4 PURCHASE TRACKING (SERVER-SIDE)                                     */
     /* -------------------------------------------------------------------------- */
     const DEFAULT_GA4_MEASUREMENT_ID = 'G-N337Q74SB4';
